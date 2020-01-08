@@ -48,6 +48,13 @@ class Alignment(object):
 
         self.query_cov = 100.0 * (self.query_end - self.query_start) / self.query_length
 
+        self.cigar, self.alignment_score = None, None
+        for part in line_parts:
+            if part.startswith('cg:Z:'):
+                self.cigar = part[5:]
+            if part.startswith('AS:i:'):
+                self.alignment_score = int(part[5:])
+
     def get_ref_depth_contribution(self):
         """
         Returns how much depth this alignment contributes to the reference (0.0 to 1.0, on the low
@@ -72,6 +79,20 @@ def align_a_to_b(seq_a, seq_b):
         with open(os.devnull, 'w') as dev_null:
             out = subprocess.check_output(['minimap2', '-c', '-x', 'asm20',
                                            str(temp_b), str(temp_a)], stderr=dev_null)
+    out = out.decode()
+    alignment_lines = out.splitlines()
+    alignments = [Alignment(x) for x in alignment_lines]
+    return alignments
+
+
+def align_reads_to_seq(reads, seq, threads):
+    with tempfile.TemporaryDirectory() as temp_dir:
+        temp_dir = pathlib.Path(temp_dir)
+        temp_fasta = temp_dir / 'seq.fasta'
+        write_seq_to_fasta(seq, 'seq', temp_fasta)
+        with open(os.devnull, 'w') as dev_null:
+            out = subprocess.check_output(['minimap2', '-c', '-x', 'map-ont', '-t', str(threads),
+                                           str(temp_fasta), str(reads)], stderr=dev_null)
     out = out.decode()
     alignment_lines = out.splitlines()
     alignments = [Alignment(x) for x in alignment_lines]

@@ -22,7 +22,7 @@ from .help_formatter import MyParser, MyHelpFormatter
 from .initial_check import initial_sanity_check
 from .log import log, section_header, explanation
 from .misc import get_default_thread_count, get_sequence_file_type, load_fasta, get_fastq_stats
-from .starting_gene import get_starting_seq, rotate_to_starting_seq
+from .starting_seq import get_starting_seq, rotate_to_starting_seq
 from .version import __version__
 from . import settings
 
@@ -65,7 +65,7 @@ def main(args=None):
     initial_sanity_check(seqs)
     starting_seq, seqs = get_starting_seq(seqs)
     if args.circular:
-        seqs = circularise(seqs, args.reads)
+        seqs = circularise(seqs, args.reads, args.threads)
         seqs = rotate_to_starting_seq(seqs, starting_seq)
 
     # TODO: Do all pairwise global alignments between contigs

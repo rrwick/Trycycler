@@ -48,12 +48,24 @@ def rotate_to_starting_seq(seqs, starting_seq):
                 'contig end. In this step, Trycycler rotates each contig such that it begins with '
                 'the starting sequence, ensuring that all contigs begin and end together so they '
                 'can be aligned to each other.')
-    # TODO
-    # TODO
-    # TODO
-    # TODO
-    # TODO
-    return seqs  # TEMP
+    rotated_seqs = {}
+    for seq_name, seq in seqs.items():
+        alignments = align_a_to_b(starting_seq, seq)
+        alignments = [a for a in alignments if a.query_cov == 100.0]
+        if len(alignments) == 0:
+            sys.exit(f'Error: failed to find starting sequence in {seq_name}')
+        elif len(alignments) > 1:
+            sys.exit(f'Error: found multiple instances of starting sequence in {seq_name}')
+        else:
+            alignment = alignments[0]
+            new_start_point = alignment.ref_start
+            rotated_seq = seq[new_start_point:] + seq[:new_start_point]
+            rotated_seqs[seq_name] = rotated_seq
+            start, end = rotated_seq[:20], rotated_seq[-20:]
+            log(f'{seq_name}: rotating by {new_start_point:,} bp')
+            log(f'   {start}...{end} ({len(rotated_seq):,} bp)')
+        log()
+    return rotated_seqs
 
 
 def get_random_starting_sequence(seqs):
@@ -110,7 +122,7 @@ def normalise_strands(seqs, starting_seq):
             strand_fixed_seqs[seq_name] = seq
         else:
             assert strand == '-'
-            log('- strand (using reverse complement sequence)')
+            log('- strand (using reverse complement)')
             strand_fixed_seqs[seq_name] = reverse_complement(seq)
     log()
     return strand_fixed_seqs

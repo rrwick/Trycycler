@@ -169,3 +169,12 @@ def complement_base(base):
 
 def reverse_complement(seq):
     return ''.join([complement_base(x) for x in seq][::-1])
+
+
+def remove_duplicates(lst):
+    """
+    https://stackoverflow.com/questions/480214/how-do-you-remove-duplicates-from-a-list-whilst-preserving-order
+    """
+    seen = set()
+    seen_add = seen.add
+    return [x for x in lst if not (x in seen or seen_add(x))]
