@@ -21,7 +21,6 @@ import subprocess
 import tempfile
 
 from .misc import write_seq_to_fasta
-from . import settings
 
 
 class Alignment(object):

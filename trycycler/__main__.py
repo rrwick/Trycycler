@@ -13,15 +13,19 @@ If not, see <http://www.gnu.org/licenses/>.
 """
 
 import argparse
+import pathlib
 import random
 import string
 import sys
 
+from .base_scores import get_per_base_scores
 from .circularisation import circularise
+from .consensus import get_consensus_seq
 from .help_formatter import MyParser, MyHelpFormatter
 from .initial_check import initial_sanity_check
 from .log import log, section_header, explanation
 from .misc import get_default_thread_count, get_sequence_file_type, load_fasta, get_fastq_stats
+from .pairwise import get_pairwise_alignments
 from .starting_seq import get_starting_seq, rotate_to_starting_seq
 from .version import __version__
 from . import settings
@@ -36,6 +40,8 @@ def get_arguments(args):
                                     'required with one contig per file)')
     required_args.add_argument('-r', '--reads', type=str, required=True,
                                help='Long reads (FASTQ format) used to generate the assemblies')
+    required_args.add_argument('-o', '--out_dir', type=pathlib.Path, required=True,
+                               help='Output directory')
 
     setting_args = parser.add_argument_group('Settings')
     setting_args.add_argument('-t', '--threads', type=int, default=get_default_thread_count(),
@@ -67,18 +73,11 @@ def main(args=None):
     if args.circular:
         seqs = circularise(seqs, args.reads, args.threads)
         seqs = rotate_to_starting_seq(seqs, starting_seq)
-
-    # TODO: Do all pairwise global alignments between contigs
-
-    # TODO: Do a sanity check for alignment congruency. I.e. quit if any of the sequences have
-    #       terribly bad global alignments to the other sequences.
-
-    # TODO: Combine pairwise global alignments to a multiple sequence alignment?
-
-    # TODO: Get per-base quality scores for each of the contigs
-
-    # TODO: Make a consensus contig by tracing through the MSA, switching around to always stay on
-    #       the highest possible quality score.
+    save_seqs_to_fasta(seqs, args.out_dir / '01_all_seqs.fasta')
+    pairwise_alignments = get_pairwise_alignments(seqs)
+    per_base_scores = get_per_base_scores(seqs, args.reads, args.circular)
+    consensus_seq = get_consensus_seq(seqs, per_base_scores, pairwise_alignments)
+    save_seqs_to_fasta(consensus_seq, args.out_dir / '02_consensus.fasta')
 
 
 def welcome_message():
@@ -91,6 +90,7 @@ def welcome_message():
 def check_inputs_and_requirements(args):
     check_input_reads(args.reads)
     check_input_contigs(args.contigs)
+    check_output_directory(args.out_dir)
     check_required_software()
 
 
@@ -141,6 +141,17 @@ def check_input_contigs(filenames):
     log()
 
 
+def check_output_directory(directory):
+    if directory.is_file():
+        sys.exit(f'Error: output directory ({directory}) already exists as a file')
+    if directory.is_dir():
+        log(f'Output directory ({directory}) already exists - files may be overwritten.')
+    else:
+        log(f'Creating output directory: {directory}')
+        directory.mkdir(parents=True)
+    log()
+
+
 def check_required_software():
     pass
     # TODO
@@ -148,6 +159,15 @@ def check_required_software():
     # TODO
     # TODO
     # TODO
+
+
+def save_seqs_to_fasta(seqs, filename):
+    log(f'Saving sequences to file: {filename}')
+    with open(filename, 'wt') as fasta:
+        for name, seq in seqs.items():
+            fasta.write(f'>{name}\n')
+            fasta.write(f'{seq}\n')
+    log()
 
 
 if __name__ == '__main__':

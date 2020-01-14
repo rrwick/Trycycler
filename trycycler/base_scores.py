@@ -1,8 +1,4 @@
 """
-This module contains some hard-coded settings used in various parts of Trycycler. These are
-probably too low-level to expose to the user (via command-line arguments) but developers may want
-to tweak them.
-
 Copyright 2019 Ryan Wick (rrwick@gmail.com)
 https://github.com/rrwick/Trycycler
 
@@ -15,24 +11,27 @@ details. You should have received a copy of the GNU General Public License along
 If not, see <http://www.gnu.org/licenses/>.
 """
 
-MAX_INPUT_CONTIGS = 10
 
-LENGTH_DIFFERENCE_THRESHOLD = 0.8
-MASH_DISTANCE_THRESHOLD = 0.025
+from .log import log, section_header, explanation
 
-START_END_SIZE = 500
-START_END_COV_THRESHOLD = 95.0
-START_END_IDENTITY_THRESHOLD = 95.0
-START_END_GAP_SIZE = 1000
-START_END_OVERLAP_SIZE = 200000
 
-CIRCULARISATION_CHOICE_ALIGNMENT_SIZE = 1000
+def get_per_base_scores(seqs, reads, circular):
+    section_header('Per-base quality scores')
+    explanation('')
 
-RANDOM_STARTING_SEQ_LEN = 250
-RANDOM_STARTING_SEQ_TRIAL_COUNT = 1000
-RANDOM_STARTING_SEQ_MIN_IDENTITY = 97.5
+    per_base_scores = {}
+    for name, seq in seqs:
+        per_base_scores[name] = get_one_seq_per_base_scores(seq, reads, circular)
 
-KNOWN_STARTING_SEQ_MIN_IDENTITY = 95.0
-KNOWN_STARTING_SEQ_MIN_COVERAGE = 95.0
 
-MIN_ALLOWED_PAIRWISE_IDENTITY = 95.0
+
+def get_one_seq_per_base_scores(seq, reads, circular):
+    pass
+    # TODO: if circular, save a doubled version of the seq to a temp file. If not circular, save
+    #       the normal seq instead.
+
+    # TODO: align the reads to the doubled (or not) sequence
+
+    # TODO: clean up redundant alignments (residing entirely in second duplicated half)
+
+    # TODO: GET THE PER-BASE SCORES! (somehow)
