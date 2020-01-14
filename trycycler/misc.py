@@ -118,7 +118,7 @@ def count_reads(filename):
     return count
 
 
-def load_fasta(fasta_filename):
+def load_fasta(fasta_filename, include_full_header=False):
     if get_compression_type(fasta_filename) == 'gz':
         open_func = gzip.open
     else:  # plain text
@@ -133,13 +133,19 @@ def load_fasta(fasta_filename):
                 continue
             if line[0] == '>':  # Header line = start of new contig
                 if name:
-                    fasta_seqs.append((name.split()[0], ''.join(sequence)))
+                    if include_full_header:
+                        fasta_seqs.append((name.split()[0], name, ''.join(sequence)))
+                    else:
+                        fasta_seqs.append((name.split()[0], ''.join(sequence)))
                     sequence = []
                 name = line[1:]
             else:
                 sequence.append(line)
         if name:
-            fasta_seqs.append((name.split()[0], ''.join(sequence)))
+            if include_full_header:
+                fasta_seqs.append((name.split()[0], name, ''.join(sequence)))
+            else:
+                fasta_seqs.append((name.split()[0], ''.join(sequence)))
     return fasta_seqs
 
 

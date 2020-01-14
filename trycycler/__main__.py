@@ -63,7 +63,7 @@ def main(args=None):
     check_inputs_and_requirements(args)
     seqs = load_contig_sequences(args.contigs)
     initial_sanity_check(seqs)
-    starting_seq, seqs = get_starting_seq(seqs)
+    starting_seq, seqs = get_starting_seq(seqs, args.threads)
     if args.circular:
         seqs = circularise(seqs, args.reads, args.threads)
         seqs = rotate_to_starting_seq(seqs, starting_seq)

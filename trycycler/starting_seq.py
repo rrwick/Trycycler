@@ -11,18 +11,20 @@ details. You should have received a copy of the GNU General Public License along
 If not, see <http://www.gnu.org/licenses/>.
 """
 
+import pathlib
+import pkg_resources
 import random
 import sys
 import textwrap
 import zlib
 
-from .alignment import align_a_to_b
+from .alignment import align_a_to_b, align_reads_to_seq
 from .log import log, section_header, explanation
-from .misc import reverse_complement
+from .misc import reverse_complement, load_fasta
 from . import settings
 
 
-def get_starting_seq(seqs):
+def get_starting_seq(seqs, threads):
     section_header('Finding starting sequence')
     explanation('In this step, Trycycler finds a sequence to use as a starting point for each of '
                 'the contigs. This can be a standard starting point (e.g. the dnaA gene) or if '
@@ -32,13 +34,58 @@ def get_starting_seq(seqs):
                 'the starting sequence will only be used for strand normalisation, not for contig '
                 'rotation.')
 
-    starting_seq = None  # TODO: look for known start sequences (dnaA/repA or user-provided) here.
+    starting_seq = look_for_known_starting_seq(seqs, threads)
 
     if starting_seq is None:
         starting_seq = get_random_starting_sequence(seqs)
 
     strand_fixed_seqs = normalise_strands(seqs, starting_seq)
     return starting_seq, strand_fixed_seqs
+
+
+def look_for_known_starting_seq(seqs, threads):
+    data_path = pathlib.Path(pkg_resources.resource_filename(__name__, 'data'))
+    starting_genes = str(data_path / 'starting_genes.fasta')
+
+    log('Looking for known starting sequences in each contig:', end='')
+    per_seq_alignments = {}
+    for name, seq in seqs.items():
+        alignments = align_reads_to_seq(starting_genes, seq, threads)
+        alignments = [a for a in alignments
+                      if a.percent_identity >= settings.KNOWN_STARTING_SEQ_MIN_IDENTITY
+                      and a.query_cov >= settings.KNOWN_STARTING_SEQ_MIN_COVERAGE
+                      and a.query_start == 0]
+        per_seq_alignments[name] = alignments
+        log(f' {name}', end='')
+    log('\n')
+
+    all_found_starting_seq_names = set()
+    for alignments in per_seq_alignments.values():
+        for a in alignments:
+            all_found_starting_seq_names.add(a.query_name)
+
+    found_in_each = set()
+    for starting_seq_name in all_found_starting_seq_names:
+        found_count = 0
+        for alignments in per_seq_alignments.values():
+            if any(a.query_name == starting_seq_name for a in alignments):
+                found_count += 1
+        if found_count == len(seqs):
+            found_in_each.add(starting_seq_name)
+
+    if len(found_in_each) == 0:
+        log('Unable to find a known starting sequence')
+        starting_seq = None
+    else:
+        # If more than one starting sequence was found, choose the one with the first name (which
+        # should correspond to the one with the most constituent sequences in its cluster).
+        starting_seq_name = sorted(found_in_each)[0]
+        starting_sequences, descriptions = load_starting_sequences(starting_genes)
+        starting_seq = starting_sequences[starting_seq_name]
+        log(f'Found starting sequence {starting_seq_name} ({descriptions[starting_seq_name]})')
+
+    log()
+    return starting_seq
 
 
 def rotate_to_starting_seq(seqs, starting_seq):
@@ -126,3 +173,11 @@ def normalise_strands(seqs, starting_seq):
             strand_fixed_seqs[seq_name] = reverse_complement(seq)
     log()
     return strand_fixed_seqs
+
+
+def load_starting_sequences(fasta_filename):
+    seqs, descriptions = {}, {}
+    for name, header, seq in load_fasta(fasta_filename, include_full_header=True):
+        seqs[name] = seq
+        descriptions[name] = header.split(maxsplit=2)[2]
+    return seqs, descriptions
