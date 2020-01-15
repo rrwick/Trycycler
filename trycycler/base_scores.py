@@ -24,7 +24,6 @@ def get_per_base_scores(seqs, reads, circular):
         per_base_scores[name] = get_one_seq_per_base_scores(seq, reads, circular)
 
 
-
 def get_one_seq_per_base_scores(seq, reads, circular):
     pass
     # TODO: if circular, save a doubled version of the seq to a temp file. If not circular, save

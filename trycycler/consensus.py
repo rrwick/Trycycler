@@ -18,4 +18,3 @@ from .log import log, section_header, explanation
 def get_consensus_seq(seqs, per_base_scores, pairwise_alignments):
     section_header('Consensus sequence')
     explanation('')
-

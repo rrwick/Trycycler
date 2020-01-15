@@ -66,51 +66,31 @@ def get_length_ratio_matrix(seq_names, seqs):
 
 
 def get_mash_dist_matrix(seq_names, seqs):
-    # TODO: I could make this faster by pre-sketching all the sequences and running mash on the
-    #       sketches.
-    mash_matrix = {}
-    for a in seq_names:
-        log(f'  {a}: ', end='')
-        for b in seq_names:
-            if a == b:
-                distance = 0.0
-            else:
-                distance = min(get_mash_dist(seqs[a], seqs[b], '+'),
-                               get_mash_dist(seqs[a], seqs[b], '-'))
-                mash_matrix[(a, b)] = distance
-            distance_str = f'{distance:.3f}'
-
-            if a == b:
-                log(dim(distance_str), end='')
-            elif distance > settings.MASH_DISTANCE_THRESHOLD:
-                log(red(distance_str), end='')
-            else:
-                log(distance_str, end='')
-            if b != seq_names[-1]:  # if not the last one in the row
-                log('  ', end='')
-            mash_matrix[(b, a)] = distance
-        log()
+    with tempfile.TemporaryDirectory() as temp_dir:
+        temp_dir = pathlib.Path(temp_dir)
+        pos_sketches, neg_sketches = make_mash_sketches(seq_names, seqs, temp_dir)
+        mash_matrix = {}
+        for a in seq_names:
+            log(f'  {a}: ', end='')
+            for b in seq_names:
+                if a == b:
+                    distance = 0.0
+                else:
+                    distance = min(get_mash_dist(pos_sketches[a], pos_sketches[b]),
+                                   get_mash_dist(pos_sketches[a], neg_sketches[b]))
+                    mash_matrix[(a, b)] = distance
+                if a == b:
+                    log(dim(f'{distance:.3f}'), end='')
+                elif distance > settings.MASH_DISTANCE_THRESHOLD:
+                    log(red(f'{distance:.3f}'), end='')
+                else:
+                    log(f'{distance:.3f}', end='')
+                if b != seq_names[-1]:  # if not the last one in the row
+                    log('  ', end='')
+                mash_matrix[(b, a)] = distance
+            log()
     log()
     return mash_matrix
-
-
-def print_matrix(seq_names, matrix, min_threshold, max_threshold):
-    longest_name_len = max(len(n) for n in seq_names)
-    for a in seq_names:
-        log('  ', end='')
-        log(a.ljust(longest_name_len), end='  ')
-        val_strings = []
-        for b in seq_names:
-            val = matrix[(a, b)]
-            val_str = f'{val:.3f}'
-            if a == b:
-                val_strings.append(dim(val_str))
-            elif val < min_threshold or val > max_threshold:
-                val_strings.append(red(val_str))
-            else:
-                val_strings.append(val_str)
-        log('  '.join(val_strings))
-    log()
 
 
 def check_length_ratios(length_matrix):
@@ -146,19 +126,32 @@ def check_mash_distances(mash_matrix):
         sys.exit(f'Error: there is too much Mash distance between contigs')
 
 
-def get_mash_dist(seq_a, seq_b, strand):
-    assert strand == '+' or strand == '-'
-    if strand == '-':
-        seq_b = reverse_complement(seq_b)
-    with tempfile.TemporaryDirectory() as temp_dir:
-        temp_dir = pathlib.Path(temp_dir)
-        temp_a = temp_dir / 'a.fasta'
-        temp_b = temp_dir / 'b.fasta'
-        write_seq_to_fasta(seq_a, 'A', temp_a)
-        write_seq_to_fasta(seq_b, 'B', temp_b)
+def make_mash_sketches(seq_names, seqs, temp_dir):
+    pos_sketches, neg_sketches = {}, {}
+    for seq_name in seq_names:
+        seq_pos = seqs[seq_name]
+        seq_neg = reverse_complement(seq_pos)
+        fasta_pos = temp_dir / (seq_name + '_pos.fasta')
+        fasta_neg = temp_dir / (seq_name + '_neg.fasta')
+        write_seq_to_fasta(seq_pos, seq_name, fasta_pos)
+        write_seq_to_fasta(seq_neg, seq_name, fasta_neg)
+        sketch_pos = temp_dir / (seq_name + '_pos.msh')
+        sketch_neg = temp_dir / (seq_name + '_neg.msh')
         with open(os.devnull, 'w') as dev_null:
-            out = subprocess.check_output(['mash', 'dist', '-n', str(temp_a), str(temp_b)],
-                                          stderr=dev_null)
-        out = out.decode()
-        parts = out.split('\t')
-        return float(parts[2])
+            _ = subprocess.check_output(['mash', 'sketch', '-n', '-o', str(sketch_pos),
+                                         str(fasta_pos)], stderr=dev_null)
+        with open(os.devnull, 'w') as dev_null:
+            _ = subprocess.check_output(['mash', 'sketch', '-n', '-o', str(sketch_neg),
+                                         str(fasta_neg)], stderr=dev_null)
+        pos_sketches[seq_name] = sketch_pos
+        neg_sketches[seq_name] = sketch_neg
+    return pos_sketches, neg_sketches
+
+
+def get_mash_dist(sketch_a, sketch_b):
+    with open(os.devnull, 'w') as dev_null:
+        out = subprocess.check_output(['mash', 'dist', str(sketch_a), str(sketch_b)],
+                                      stderr=dev_null)
+    out = out.decode()
+    parts = out.split('\t')
+    return float(parts[2])
