@@ -74,7 +74,7 @@ def main(args=None):
         seqs = circularise(seqs, args.reads, args.threads)
         seqs = rotate_to_starting_seq(seqs, starting_seq)
     save_seqs_to_fasta(seqs, args.out_dir / '01_all_seqs.fasta')
-    per_base_scores = get_per_base_scores(seqs, args.reads, args.circular)
+    per_base_scores = get_per_base_scores(seqs, args.reads, args.circular, args.threads)
     pairwise_alignments = get_pairwise_alignments(seqs)
     consensus_seq = get_consensus_seq(seqs, per_base_scores, pairwise_alignments)
     save_seqs_to_fasta(consensus_seq, args.out_dir / '02_consensus.fasta')

@@ -16,6 +16,7 @@ If not, see <http://www.gnu.org/licenses/>.
 
 import os
 import pathlib
+import re
 import sys
 import subprocess
 import tempfile
@@ -67,6 +68,15 @@ class Alignment(object):
                self.ref_name + ':' + str(self.ref_start) + '-' + str(self.ref_end) + \
                ' (' + ('%.3f' % self.percent_identity) + '%)'
 
+    def get_expanded_cigar(self):
+        expanded_cigar = []
+        cigar_parts = re.findall(r'\d+[IDX=]', self.cigar)
+        for cigar_part in cigar_parts:
+            num = int(cigar_part[:-1])
+            letter = cigar_part[-1]
+            expanded_cigar.append(letter * num)
+        return ''.join(expanded_cigar)
+
 
 def align_a_to_b(seq_a, seq_b):
     with tempfile.TemporaryDirectory() as temp_dir:
@@ -76,7 +86,7 @@ def align_a_to_b(seq_a, seq_b):
         write_seq_to_fasta(seq_a, 'A', temp_a)
         write_seq_to_fasta(seq_b, 'B', temp_b)
         with open(os.devnull, 'w') as dev_null:
-            out = subprocess.check_output(['minimap2', '-c', '-x', 'asm20',
+            out = subprocess.check_output(['minimap2', '--eqx', '-c', '-x', 'asm20',
                                            str(temp_b), str(temp_a)], stderr=dev_null)
     out = out.decode()
     alignment_lines = out.splitlines()
@@ -90,8 +100,9 @@ def align_reads_to_seq(reads, seq, threads):
         temp_fasta = temp_dir / 'seq.fasta'
         write_seq_to_fasta(seq, 'seq', temp_fasta)
         with open(os.devnull, 'w') as dev_null:
-            out = subprocess.check_output(['minimap2', '-c', '-x', 'map-ont', '-t', str(threads),
-                                           str(temp_fasta), str(reads)], stderr=dev_null)
+            out = subprocess.check_output(['minimap2', '--eqx', '-c', '-x', 'map-ont', '-t',
+                                           str(threads), str(temp_fasta), str(reads)],
+                                          stderr=dev_null)
     out = out.decode()
     alignment_lines = out.splitlines()
     alignments = [Alignment(x) for x in alignment_lines]
