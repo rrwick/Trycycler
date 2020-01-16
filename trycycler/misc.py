@@ -13,10 +13,9 @@ If not, see <http://www.gnu.org/licenses/>.
 """
 
 import gzip
+import itertools
 import multiprocessing
 import os
-import shutil
-import subprocess
 import sys
 
 
@@ -183,3 +182,16 @@ def remove_duplicates(lst):
     seen = set()
     seen_add = seen.add
     return [x for x in lst if not (x in seen or seen_add(x))]
+
+
+def means_of_slices(iterable, slice_size):
+    """
+    https://stackoverflow.com/questions/53373362/the-average-value-of-a-list-in-chunks-of-100-items
+    """
+    iterator = iter(iterable)
+    while True:
+        s = list(itertools.islice(iterator, slice_size))
+        if s:
+            yield sum(s) / len(s)
+        else:
+            return

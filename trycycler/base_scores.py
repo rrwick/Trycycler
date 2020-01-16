@@ -11,12 +11,18 @@ details. You should have received a copy of the GNU General Public License along
 If not, see <http://www.gnu.org/licenses/>.
 """
 
+import matplotlib
+import matplotlib.pyplot as plt
+import numpy as np
+import re
+
 from .alignment import align_reads_to_seq
 from .log import log, section_header, explanation
+from .misc import means_of_slices
 from . import settings
 
 
-def get_per_base_scores(seqs, reads, circular, threads):
+def get_per_base_scores(seqs, reads, circular, threads, plot_qual, fasta_names):
     section_header('Per-base quality scores')
     explanation('Trycycler now aligns all reads to each sequence and uses the alignments to '
                 'create per-base quality scores for the entire sequence.')
@@ -25,6 +31,8 @@ def get_per_base_scores(seqs, reads, circular, threads):
         log(f'Aligning reads to sequence {seq_name}:')
         per_base_scores[seq_name] = \
             get_one_seq_per_base_scores(seq, reads, circular, threads)
+        if plot_qual:
+            plot_per_base_scores(seq_name, per_base_scores[seq_name], fasta_names)
         log()
 
 
@@ -61,7 +69,10 @@ def get_one_seq_per_base_scores(seq, reads, circular, threads):
         for i in range(seq_len):
             score_1 = per_base_scores[i]
             score_2 = per_base_scores[i + seq_len]
-            non_doubled_per_base_scores[i] = max(score_1, score_2)
+            if score_1 > score_2:
+                non_doubled_per_base_scores[i] = score_1
+            else:
+                non_doubled_per_base_scores[i] = score_2
         per_base_scores = non_doubled_per_base_scores
 
     total_score = sum(per_base_scores)
@@ -70,14 +81,12 @@ def get_one_seq_per_base_scores(seq, reads, circular, threads):
 
 
 def get_alignment_scores(a):
-    # The expanded CIGARs has just the four characters (=, X, I and D) repeated (i.e. no numbers).
-    expanded_cigar = a.get_expanded_cigar()
+    expanded_cigar = get_expanded_cigar(a)
+    pass_fail = get_pass_fail(expanded_cigar)
 
-    # The simplified expanded CIGAR has only two characters: = for match and X for everything else.
-    simplified_expanded_cigar = expanded_cigar.replace('I', 'X').replace('D', 'X')
-
-    # The pass/fail string has two characters: P for good regions and F for bad regions.
-    pass_fail = get_pass_fail_string(simplified_expanded_cigar)
+    # We need to index into these, which is a bit faster for a Python list than for a Numpy array.
+    expanded_cigar = expanded_cigar.tolist()
+    pass_fail = pass_fail.tolist()
 
     # We now make the score for each position of the expanded CIGAR. The score increases with
     # matches and resets to zero at fail regions. This is done in both forward and reverse
@@ -88,37 +97,67 @@ def get_alignment_scores(a):
     # To make the final scores, we combine the forward and reverse scores, taking the minimum of
     # each. We also drop any insertion positions, so the scores match up with the corresponding
     # range of the reference sequence.
-    final_scores = []
-    assert len(forward_scores) == len(reverse_scores)
-    for i, f in enumerate(forward_scores):
-        r = reverse_scores[i]
-        if expanded_cigar[i] != 'I':
-            final_scores.append(min(f, r))
-    assert len(final_scores) == a.ref_end - a.ref_start
-    return final_scores
+    return combine_forward_and_reverse_scores(a, forward_scores, reverse_scores, expanded_cigar)
 
 
-def get_pass_fail_string(simplified_expanded_cigar):
-    pass_fail = ['P'] * len(simplified_expanded_cigar)
-    i, j = 0, settings.SPLIT_ALIGNMENT_BAD_WINDOW
-    while j <= len(simplified_expanded_cigar):
-        cigar_window = simplified_expanded_cigar[i:j]
-        if cigar_window.count('X') >= settings.SPLIT_ALIGNMENT_BAD_THRESHOLD:
-            for k in range(i, j):
-                pass_fail[k] = 'F'
-        i += 1
-        j += 1
-    return ''.join(pass_fail)
+def get_expanded_cigar(a):
+    """
+    An expanded CIGARs has just the four characters (=, X, I and D) repeated (i.e. no numbers).
+    Here I store it as integers (0: =, 1: X, 2: I, 3: D) and return it as a Numpy array
+    """
+    cigar_parts = re.findall(r'\d+[IDX=]', a.cigar)
+    cigar_parts = [(int(c[:-1]), c[-1]) for c in cigar_parts]
+    expanded_cigar_size = sum(p[0] for p in cigar_parts)
+    expanded_cigar = [0] * expanded_cigar_size
+
+    i = 0
+    for num, letter in cigar_parts:
+        if letter == '=':
+            v = 0
+        elif letter == 'X':
+            v = 1
+        elif letter == 'I':
+            v = 2
+        elif letter == 'D':
+            v = 3
+        else:
+            assert False
+        for _ in range(num):
+            expanded_cigar[i] = v
+            i += 1
+    assert i == expanded_cigar_size
+
+    return np.asarray(expanded_cigar, dtype=int)
+
+
+def get_pass_fail(expanded_cigar):
+    # The simplified expanded CIGAR has only two values: 0 for match, 1 for everything else.
+    simplified_expanded_cigar = np.copy(expanded_cigar)
+    simplified_expanded_cigar[simplified_expanded_cigar > 1] = 1
+
+    # We then sum the values over a sliding window.
+    pass_fail = np.convolve(simplified_expanded_cigar,
+                            np.ones(settings.BASE_SCORE_WINDOW, dtype=int), 'same')
+
+    # And then simplify this to a pass/fail array with two values: 0 for pass, 1 for fail.
+    pass_fail[pass_fail < settings.BASE_SCORE_THRESHOLD] = 0
+    pass_fail[pass_fail >= settings.BASE_SCORE_THRESHOLD] = 1
+
+    return pass_fail
 
 
 def get_cigar_scores_forward(expanded_cigar, pass_fail):
     scores = [0] * len(expanded_cigar)
     score = 0
     for i in range(len(expanded_cigar)):
-        if pass_fail[i] == 'F':
+        if pass_fail[i] == 1:  # fail
             score = 0
-        elif expanded_cigar[i] == '=':
+        elif expanded_cigar[i] == 0:  # match
             score += 1
+        else:  # anything other than a match
+            score -= 1
+            if score < 0:
+                score = 0
         scores[i] = score
     return scores
 
@@ -127,9 +166,62 @@ def get_cigar_scores_reverse(expanded_cigar, pass_fail):
     scores = [0] * len(expanded_cigar)
     score = 0
     for i in range(len(expanded_cigar) - 1, -1, -1):  # loop through indices backwards
-        if pass_fail[i] == 'F':
+        if pass_fail[i] == 1:  # fail
             score = 0
-        elif expanded_cigar[i] == '=':
+        elif expanded_cigar[i] == 0:  # match
             score += 1
+        else:  # anything other than a match
+            score -= 1
+            if score < 0:
+                score = 0
         scores[i] = score
     return scores
+
+
+def combine_forward_and_reverse_scores(a, forward_scores, reverse_scores, expanded_cigar):
+    """
+    The combined scores are the minimums values at each position, excluding insertion positions.
+    """
+    final_scores = [0] * (a.ref_end - a.ref_start)
+    assert len(forward_scores) == len(reverse_scores)
+    j = 0  # index in final_scores
+    for i, f in enumerate(forward_scores):
+        r = reverse_scores[i]
+        if expanded_cigar[i] != 2:   # if not an insertion
+            if f < r:
+                final_scores[j] = f
+            else:
+                final_scores[j] = r
+            j += 1
+    assert len(final_scores) == j
+    return final_scores
+
+
+class MyAxes(matplotlib.axes.Axes):
+    name = 'MyAxes'
+
+    def drag_pan(self, button, _, x, y):
+        matplotlib.axes.Axes.drag_pan(self, button, 'x', x, y)  # pretend key=='x'
+
+
+matplotlib.projections.register_projection(MyAxes)
+
+
+def plot_per_base_scores(seq_name, per_base_scores, fasta_names, averaging_window=1000):
+    max_score = max(per_base_scores)
+    positions = list(range(len(per_base_scores)))
+
+    score_means = list(means_of_slices(per_base_scores, averaging_window))
+    position_means = list(means_of_slices(positions, averaging_window))
+
+    fig, ax1 = plt.subplots(1, 1, figsize=(12, 3), subplot_kw={'projection': 'MyAxes'})
+    ax1.plot(position_means, score_means, '-', color='#8F0505')
+
+    plt.xlabel('contig position')
+    plt.ylabel('quality score')
+    plt.title(f'{seq_name} ({fasta_names[seq_name]})')
+    ax1.set_xlim([0, len(per_base_scores)])
+    ax1.set_ylim([0, max_score])
+
+    fig.canvas.manager.toolbar.pan()
+    plt.show()

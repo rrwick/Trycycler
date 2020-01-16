@@ -49,6 +49,9 @@ def get_arguments(args):
     setting_args.add_argument('--not_circular', action='store_true',
                               help='The input contigs are not circular (default: assume the input '
                                    'contigs are circular)')
+    setting_args.add_argument('--plot_qual', action='store_true',
+                              help='Show plots of the per-base quality across the contigs')
+
 
     other_args = parser.add_argument_group('Other')
     other_args.add_argument('-h', '--help', action='help', default=argparse.SUPPRESS,
@@ -67,14 +70,15 @@ def main(args=None):
     random.seed(0)
     welcome_message()
     check_inputs_and_requirements(args)
-    seqs = load_contig_sequences(args.contigs)
+    seqs, fasta_names = load_contig_sequences(args.contigs)
     initial_sanity_check(seqs)
     starting_seq, seqs = get_starting_seq(seqs, args.threads)
     if args.circular:
         seqs = circularise(seqs, args.reads, args.threads)
         seqs = rotate_to_starting_seq(seqs, starting_seq)
     save_seqs_to_fasta(seqs, args.out_dir / '01_all_seqs.fasta')
-    per_base_scores = get_per_base_scores(seqs, args.reads, args.circular, args.threads)
+    per_base_scores = get_per_base_scores(seqs, args.reads, args.circular, args.threads,
+                                          args.plot_qual, fasta_names)
     pairwise_alignments = get_pairwise_alignments(seqs)
     consensus_seq = get_consensus_seq(seqs, per_base_scores, pairwise_alignments)
     save_seqs_to_fasta(consensus_seq, args.out_dir / '02_consensus.fasta')
@@ -95,13 +99,14 @@ def check_inputs_and_requirements(args):
 
 
 def load_contig_sequences(filenames):
-    contig_seqs = {}
+    contig_seqs, fasta_names = {}, {}
     for i, f in enumerate(filenames):
         letter = string.ascii_uppercase[i]
         seqs = load_fasta(f)
         assert len(seqs) == 1
         contig_seqs[letter] = seqs[0][1]
-    return contig_seqs
+        fasta_names[letter] = f
+    return contig_seqs, fasta_names
 
 
 def check_input_reads(filename):

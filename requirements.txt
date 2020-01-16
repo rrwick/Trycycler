@@ -1,1 +1,3 @@
 edlib
+numpy
+matplotlib

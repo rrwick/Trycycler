@@ -16,7 +16,6 @@ If not, see <http://www.gnu.org/licenses/>.
 
 import os
 import pathlib
-import re
 import sys
 import subprocess
 import tempfile
@@ -67,15 +66,6 @@ class Alignment(object):
                '(' + self.strand + '), ' + \
                self.ref_name + ':' + str(self.ref_start) + '-' + str(self.ref_end) + \
                ' (' + ('%.3f' % self.percent_identity) + '%)'
-
-    def get_expanded_cigar(self):
-        expanded_cigar = []
-        cigar_parts = re.findall(r'\d+[IDX=]', self.cigar)
-        for cigar_part in cigar_parts:
-            num = int(cigar_part[:-1])
-            letter = cigar_part[-1]
-            expanded_cigar.append(letter * num)
-        return ''.join(expanded_cigar)
 
 
 def align_a_to_b(seq_a, seq_b):
