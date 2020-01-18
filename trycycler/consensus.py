@@ -18,3 +18,59 @@ from .log import log, section_header, explanation
 def get_consensus_seq(seqs, per_base_scores, pairwise_alignments):
     section_header('Consensus sequence')
     explanation('')
+
+    seq_names = list(seqs.keys())
+    other_seq_names = get_other_seq_names(seq_names)
+
+    current_seq_name = choose_starting_sequence(seqs, per_base_scores)
+    current_seq = seqs[current_seq_name]
+    current_pos = 0
+
+    consensus_seq = []
+
+    while True:
+        current_score = per_base_scores[current_seq_name][current_pos]
+        best_other_score, best_other_seq_name, best_other_pos = 0, None, None
+        for other_seq_name in other_seq_names[current_seq_name]:
+            pairwise = pairwise_alignments[(current_seq_name, other_seq_name)]
+            other_pos = pairwise[current_pos]
+            if other_pos is not None:
+                other_score = per_base_scores[other_seq_name][other_pos]
+                if other_score > best_other_score:
+                    best_other_score = other_score
+                    best_other_seq_name = other_seq_name
+                    best_other_pos = other_pos
+        if best_other_score > current_score:
+            current_seq_name = best_other_seq_name
+            current_seq = seqs[current_seq_name]
+            current_pos = best_other_pos
+
+        log(f'{current_seq_name}: {current_pos}')  # TEMP
+        consensus_seq.append(current_seq[current_pos])
+
+        current_pos += 1
+        if current_pos >= len(current_seq):
+            break
+
+    return ''.join(consensus_seq)
+
+
+
+def choose_starting_sequence(seqs, per_base_scores):
+    best_seq_name, best_score = None, 0
+    for seq_name in seqs.keys():
+        starting_score = per_base_scores[seq_name][0]
+        if best_seq_name is None or starting_score > best_score:
+            best_seq_name = seq_name
+            best_score = starting_score
+    return best_seq_name
+
+
+def get_other_seq_names(seq_names):
+    """
+    Builds a dictionary where each seq name gives a list of the other seq names.
+    """
+    other_seq_names = {}
+    for seq_name in seq_names:
+        other_seq_names[seq_name] = [n for n in seq_names if n != seq_name]
+    return other_seq_names

@@ -34,6 +34,7 @@ def get_per_base_scores(seqs, reads, circular, threads, plot_qual, fasta_names):
         if plot_qual:
             plot_per_base_scores(seq_name, per_base_scores[seq_name], fasta_names)
         log()
+    return per_base_scores
 
 
 def get_one_seq_per_base_scores(seq, reads, circular, threads):
@@ -207,7 +208,7 @@ class MyAxes(matplotlib.axes.Axes):
 matplotlib.projections.register_projection(MyAxes)
 
 
-def plot_per_base_scores(seq_name, per_base_scores, fasta_names, averaging_window=1000):
+def plot_per_base_scores(seq_name, per_base_scores, fasta_names, averaging_window=100):
     max_score = max(per_base_scores)
     positions = list(range(len(per_base_scores)))
 
