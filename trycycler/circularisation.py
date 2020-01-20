@@ -38,14 +38,26 @@ def circularise(seqs, reads, threads):
 def circularise_one_seq_with_all_others(name_a, seqs, reads, threads):
     log(f'Circularising {name_a}')
     seq_a = seqs[name_a]
-    candidate_seqs = []
-    for name_b, seq_b in seqs.items():
-        if name_a == name_b:
-            continue
-        circularised_seq = circularise_one_seq_with_one_other(seq_a, seq_b, name_a, name_b)
-        if circularised_seq is not None:
-            candidate_seqs.append(circularised_seq)
-    candidate_seqs = remove_duplicates(candidate_seqs)
+
+    trim_count = 0
+    while True:
+        candidate_seqs = []
+        for name_b, seq_b in seqs.items():
+            if name_a == name_b:
+                continue
+            circularised_seq = circularise_one_seq_with_one_other(seq_a, seq_b, name_a, name_b)
+            if circularised_seq is not None:
+                candidate_seqs.append(circularised_seq)
+        candidate_seqs = remove_duplicates(candidate_seqs)
+        if len(candidate_seqs) > 0:
+            break
+        else:
+            if trim_count > settings.CIRCULARISATION_MAX_TRIM_COUNT:
+                break
+            log(f'  failed to circularise {name_a}, trimming '
+                f'{settings.CIRCULARISATION_TRIM_SIZE} from start/end and trying again...')
+            seq_a = seq_a[settings.CIRCULARISATION_TRIM_SIZE:-settings.CIRCULARISATION_TRIM_SIZE]
+            trim_count += 1
 
     if len(candidate_seqs) == 0:
         log()

@@ -13,6 +13,7 @@ If not, see <http://www.gnu.org/licenses/>.
 
 import matplotlib
 import matplotlib.pyplot as plt
+import multiprocessing
 import numpy as np
 import re
 
@@ -63,12 +64,14 @@ def get_one_seq_per_base_scores(seq, reads, circular, threads):
 
     per_base_scores = [0] * len(ref_seq)
 
-    for i, a in enumerate(alignments):
-        log(f'\r  calculating alignment scores: {i+1:,} / {len(alignments):,}', end='')
-        alignment_scores = get_alignment_scores(a)
-        for j, s in enumerate(alignment_scores):
-            ref_pos = a.ref_start + j
-            per_base_scores[ref_pos] += s
+    with multiprocessing.Pool(threads) as pool:
+        i = 0
+        for alignment_scores, a in pool.imap_unordered(get_alignment_scores, alignments):
+            i += 1
+            log(f'\r  calculating alignment scores: {i:,} / {len(alignments):,}', end='')
+            for j, s in enumerate(alignment_scores):
+                ref_pos = a.ref_start + j
+                per_base_scores[ref_pos] += s
     log()
 
     # If the sequence was doubled, we now have to undouble it by collapsing the two halves of the
@@ -106,7 +109,7 @@ def get_alignment_scores(a):
     # To make the final scores, we combine the forward and reverse scores, taking the minimum of
     # each. We also drop any insertion positions, so the scores match up with the corresponding
     # range of the reference sequence.
-    return combine_forward_and_reverse_scores(a, forward_scores, reverse_scores, expanded_cigar)
+    return combine_forward_and_reverse_scores(a, forward_scores, reverse_scores, expanded_cigar), a
 
 
 def get_expanded_cigar(a):

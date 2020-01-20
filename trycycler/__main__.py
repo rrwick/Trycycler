@@ -50,7 +50,7 @@ def get_arguments(args):
                               help='The input contigs are not circular (default: assume the input '
                                    'contigs are circular)')
     setting_args.add_argument('--plot_qual', action='store_true',
-                              help='Show plots of the per-base quality across the contigs')
+                              help='Save plots of the per-base quality across the contigs')
 
     other_args = parser.add_argument_group('Other')
     other_args.add_argument('-h', '--help', action='help', default=argparse.SUPPRESS,

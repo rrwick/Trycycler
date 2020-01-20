@@ -85,4 +85,4 @@ def log_proportion(counts):
     for seq_name, count in counts.items():
         proportion = 100.0 * count / total
         proportions.append(f'{seq_name}: {proportion:.2f}%')
-    log('\r  ' + ', '.join(proportions), end='')
+    log('\r  ' + ', '.join(proportions), end='    ')
