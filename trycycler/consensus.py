@@ -29,7 +29,7 @@ def get_consensus_seq(seqs, per_base_scores, pairwise_alignments):
 
     consensus_seq = []
     counts = {n: 0 for n in seq_names}
-
+    log('Consensus sequence composition:')
     while True:
         current_score = per_base_scores[current_seq_name][current_pos]
         best_other_score, best_other_seq_name, best_other_pos = 0, None, None
@@ -85,4 +85,4 @@ def log_proportion(counts):
     for seq_name, count in counts.items():
         proportion = 100.0 * count / total
         proportions.append(f'{seq_name}: {proportion:.2f}%')
-    log('\r' + ', '.join(proportions), end='')
+    log('\r  ' + ', '.join(proportions), end='')

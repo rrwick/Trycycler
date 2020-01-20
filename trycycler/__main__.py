@@ -169,7 +169,8 @@ def check_required_software():
 
 
 def save_seqs_to_fasta(seqs, filename):
-    log(f'Saving sequences to file: {filename}')
+    seq_word = 'sequence' if len(seqs) == 1 else 'sequences'
+    log(f'Saving {seq_word} to file: {filename}')
     with open(filename, 'wt') as fasta:
         for name, seq in seqs.items():
             fasta.write(f'>{name}\n')
