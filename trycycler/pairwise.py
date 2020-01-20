@@ -41,6 +41,7 @@ def get_pairwise_alignments(seqs):
             log(f'{percent_identity:.2f}% identity, max indel = {max_indel}')
             worst_identity = min(percent_identity, worst_identity)
             pairwise_cigars[(a, b)] = cigar
+    log()
 
     if worst_identity < settings.MIN_ALLOWED_PAIRWISE_IDENTITY:
         sys.exit(f'Error: some pairwise identities are below the minimum allowed'

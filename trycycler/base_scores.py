@@ -22,19 +22,27 @@ from .misc import means_of_slices
 from . import settings
 
 
-def get_per_base_scores(seqs, reads, circular, threads, plot_qual, fasta_names):
-    section_header('Per-base quality scores')
-    explanation('Trycycler now aligns all reads to each sequence and uses the alignments to '
-                'create per-base quality scores for the entire sequence.')
+def get_per_base_scores(seqs, reads, circular, threads, plot_qual, fasta_names, out_dir,
+                        plot_max=None, consensus=False):
+    if consensus:
+        section_header('Consensus quality scores')
+        explanation('Trycycler now aligns all reads to the consensus sequence to create per-base '
+                    'quality scores like it did for the input contigs, for comparison.')
+    else:
+        section_header('Per-base quality scores')
+        explanation('Trycycler now aligns all reads to each sequence and uses the alignments to '
+                    'create per-base quality scores for the entire sequence.')
+
     per_base_scores = {}
     for seq_name, seq in seqs.items():
         log(f'Aligning reads to sequence {seq_name}:')
-        per_base_scores[seq_name] = \
-            get_one_seq_per_base_scores(seq, reads, circular, threads)
+        scores, total = get_one_seq_per_base_scores(seq, reads, circular, threads)
+        per_base_scores[seq_name] = scores
         if plot_qual:
-            plot_per_base_scores(seq_name, per_base_scores[seq_name], fasta_names)
+            plot_max = plot_per_base_scores(seq_name, per_base_scores[seq_name], fasta_names,
+                                            out_dir, plot_max, total)
         log()
-    return per_base_scores
+    return per_base_scores, plot_max
 
 
 def get_one_seq_per_base_scores(seq, reads, circular, threads):
@@ -56,7 +64,7 @@ def get_one_seq_per_base_scores(seq, reads, circular, threads):
     per_base_scores = [0] * len(ref_seq)
 
     for i, a in enumerate(alignments):
-        log(f'\r  calculating alignment scores: {i+1} / {len(alignments)}', end='')
+        log(f'\r  calculating alignment scores: {i+1:,} / {len(alignments):,}', end='')
         alignment_scores = get_alignment_scores(a)
         for j, s in enumerate(alignment_scores):
             ref_pos = a.ref_start + j
@@ -78,7 +86,7 @@ def get_one_seq_per_base_scores(seq, reads, circular, threads):
 
     total_score = sum(per_base_scores)
     log(f'  total score = {total_score:,}')
-    return per_base_scores
+    return per_base_scores, total_score
 
 
 def get_alignment_scores(a):
@@ -208,21 +216,27 @@ class MyAxes(matplotlib.axes.Axes):
 matplotlib.projections.register_projection(MyAxes)
 
 
-def plot_per_base_scores(seq_name, per_base_scores, fasta_names, averaging_window=100):
-    max_score = max(per_base_scores)
+def plot_per_base_scores(seq_name, per_base_scores, fasta_names, out_dir, plot_max, total,
+                         averaging_window=100):
+    if plot_max is None:
+        plot_max = max(per_base_scores) * 1.1
     positions = list(range(len(per_base_scores)))
 
     score_means = list(means_of_slices(per_base_scores, averaging_window))
     position_means = list(means_of_slices(positions, averaging_window))
 
-    fig, ax1 = plt.subplots(1, 1, figsize=(12, 3), subplot_kw={'projection': 'MyAxes'})
-    ax1.plot(position_means, score_means, '-', color='#8F0505')
+    fig, ax1 = plt.subplots(1, 1, figsize=(12, 4), subplot_kw={'projection': 'MyAxes'}, dpi=300)
+    ax1.plot(position_means, score_means, '-', color='#8F0505', linewidth=1)
 
     plt.xlabel('contig position')
     plt.ylabel('quality score')
-    plt.title(f'{seq_name} ({fasta_names[seq_name]})')
+    plt.title(f'{seq_name} ({fasta_names[seq_name]}), total = {total:,}')
     ax1.set_xlim([0, len(per_base_scores)])
-    ax1.set_ylim([0, max_score])
+    ax1.set_ylim([0, plot_max])
 
-    fig.canvas.manager.toolbar.pan()
-    plt.show()
+    plot_dir = out_dir / 'plots'
+    plot_dir.mkdir(exist_ok=True)
+    plot_filename = plot_dir / (fasta_names[seq_name] + '.png')
+    plt.savefig(str(plot_filename))
+
+    return plot_max

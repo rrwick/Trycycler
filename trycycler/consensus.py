@@ -17,7 +17,8 @@ from .log import log, section_header, explanation
 
 def get_consensus_seq(seqs, per_base_scores, pairwise_alignments):
     section_header('Consensus sequence')
-    explanation('')
+    explanation('Trycycler now builds the consensus sequence by switching between contigs '
+                'to stay on whichever has the highest local score.')
 
     seq_names = list(seqs.keys())
     other_seq_names = get_other_seq_names(seq_names)
@@ -27,6 +28,7 @@ def get_consensus_seq(seqs, per_base_scores, pairwise_alignments):
     current_pos = 0
 
     consensus_seq = []
+    counts = {n: 0 for n in seq_names}
 
     while True:
         current_score = per_base_scores[current_seq_name][current_pos]
@@ -44,16 +46,17 @@ def get_consensus_seq(seqs, per_base_scores, pairwise_alignments):
             current_seq_name = best_other_seq_name
             current_seq = seqs[current_seq_name]
             current_pos = best_other_pos
-
-        log(f'{current_seq_name}: {current_pos}')  # TEMP
+            log_proportion(counts)
         consensus_seq.append(current_seq[current_pos])
+        counts[current_seq_name] += 1
 
         current_pos += 1
         if current_pos >= len(current_seq):
             break
 
+    log_proportion(counts)
+    log('\n')
     return ''.join(consensus_seq)
-
 
 
 def choose_starting_sequence(seqs, per_base_scores):
@@ -74,3 +77,12 @@ def get_other_seq_names(seq_names):
     for seq_name in seq_names:
         other_seq_names[seq_name] = [n for n in seq_names if n != seq_name]
     return other_seq_names
+
+
+def log_proportion(counts):
+    total = sum(counts.values())
+    proportions = []
+    for seq_name, count in counts.items():
+        proportion = 100.0 * count / total
+        proportions.append(f'{seq_name}: {proportion:.2f}%')
+    log('\r' + ', '.join(proportions), end='')

@@ -52,7 +52,6 @@ def get_arguments(args):
     setting_args.add_argument('--plot_qual', action='store_true',
                               help='Show plots of the per-base quality across the contigs')
 
-
     other_args = parser.add_argument_group('Other')
     other_args.add_argument('-h', '--help', action='help', default=argparse.SUPPRESS,
                             help='Show this help message and exit')
@@ -77,11 +76,14 @@ def main(args=None):
         seqs = circularise(seqs, args.reads, args.threads)
         seqs = rotate_to_starting_seq(seqs, starting_seq)
     save_seqs_to_fasta(seqs, args.out_dir / '01_all_seqs.fasta')
-    per_base_scores = get_per_base_scores(seqs, args.reads, args.circular, args.threads,
-                                          args.plot_qual, fasta_names)
     pairwise_alignments = get_pairwise_alignments(seqs)
+    per_base_scores, plot_max = get_per_base_scores(seqs, args.reads, args.circular, args.threads,
+                                                    args.plot_qual, fasta_names, args.out_dir)
     consensus_seq = get_consensus_seq(seqs, per_base_scores, pairwise_alignments)
-    save_seqs_to_fasta(consensus_seq, args.out_dir / '02_consensus.fasta')
+    save_seqs_to_fasta({'consensus': consensus_seq}, args.out_dir / '02_consensus.fasta')
+    get_per_base_scores({'consensus': consensus_seq}, args.reads, args.circular, args.threads,
+                        args.plot_qual, {'consensus': 'consensus'}, args.out_dir, plot_max,
+                        consensus=True)
 
 
 def welcome_message():

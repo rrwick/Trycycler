@@ -15,6 +15,7 @@ If not, see <http://www.gnu.org/licenses/>.
 """
 
 import trycycler.consensus
+import trycycler.pairwise
 
 
 def test_choose_starting_sequence_1():
@@ -116,8 +117,7 @@ def test_get_consensus_seq_5():
     per_base_scores = {'A': [9, 9, 9, 9, 1, 1, 1], 'B': [1, 1, 1, 1, 9, 9, 9]}
     pairwise_alignments = {('A', 'B'): [0, 1, 3, 4, 5, None, 6],
                            ('B', 'A'): [0, 1, None, 2, 3, 4, 6]}
-    consensus = trycycler.consensus.get_consensus_seq(seqs, per_base_scores,
-                                                      pairwise_alignments)
+    consensus = trycycler.consensus.get_consensus_seq(seqs, per_base_scores, pairwise_alignments)
     assert consensus == 'ACTGCC'  # starts with A, ends with B
 
 
@@ -126,8 +126,7 @@ def test_get_consensus_seq_6():
     per_base_scores = {'A': [9, 9, 9, 1, 1, 1, 1], 'B': [1, 1, 1, 9, 9, 9, 9]}
     pairwise_alignments = {('A', 'B'): [0, 1, 3, 4, 5, None, 6],
                            ('B', 'A'): [0, 1, None, 2, 3, 4, 6]}
-    consensus = trycycler.consensus.get_consensus_seq(seqs, per_base_scores,
-                                                      pairwise_alignments)
+    consensus = trycycler.consensus.get_consensus_seq(seqs, per_base_scores, pairwise_alignments)
     assert consensus == 'ACTACC'  # starts with A, ends with B
 
 
@@ -136,8 +135,7 @@ def test_get_consensus_seq_7():
     per_base_scores = {'A': [1, 1, 1, 9, 9, 9, 9], 'B': [9, 9, 9, 9, 1, 1, 1]}
     pairwise_alignments = {('A', 'B'): [0, 1, 3, 4, 5, None, 6],
                            ('B', 'A'): [0, 1, None, 2, 3, 4, 6]}
-    consensus = trycycler.consensus.get_consensus_seq(seqs, per_base_scores,
-                                                      pairwise_alignments)
+    consensus = trycycler.consensus.get_consensus_seq(seqs, per_base_scores, pairwise_alignments)
     assert consensus == 'ACCTGCTC'  # starts with B, ends with A
 
 
@@ -146,6 +144,22 @@ def test_get_consensus_seq_8():
     per_base_scores = {'A': [1, 1, 1, 1, 9, 9, 9], 'B': [9, 9, 9, 9, 9, 1, 1]}
     pairwise_alignments = {('A', 'B'): [0, 1, 3, 4, 5, None, 6],
                            ('B', 'A'): [0, 1, None, 2, 3, 4, 6]}
-    consensus = trycycler.consensus.get_consensus_seq(seqs, per_base_scores,
-                                                      pairwise_alignments)
+    consensus = trycycler.consensus.get_consensus_seq(seqs, per_base_scores, pairwise_alignments)
     assert consensus == 'ACCTACTC'  # starts with B, ends with A
+
+
+def test_get_consensus_seq_9():
+    """
+    In this test, each of the three input sequences has a bad region which the consensus should
+    avoid.
+    """
+    seqs = {'A': 'GTGTACCCCGCCACCTCGCCCGTGGCTGACCCTCCTACATAGCCCACGTTCTCTAAGGGAAGTGTGAATG',
+            'B': 'GTGTACCCCGCCACCACGCCCGTGGCTGACCCTCGTACATAGCCCACGTTCTCTAAGGGAAGTGTGAATG',
+            'C': 'GTGTACCCCGCCACCACGCCCGTGGCTGACCCTCCTACATAGCCCACGTTCTCTCAGGGAAGTGTGAATG'}
+    per_base_scores = {'A': [9]*10 + [1]*10 + [9]*50,
+                       'B': [9]*30 + [1]*10 + [9]*30,
+                       'C': [9]*50 + [1]*10 + [9]*10}
+    pairwise_alignments = trycycler.pairwise.get_pairwise_alignments(seqs)
+    consensus = trycycler.consensus.get_consensus_seq(seqs, per_base_scores, pairwise_alignments)
+    assert consensus == 'GTGTACCCCGCCACCACGCCCGTGGCTGACCCTCCTACATAGCCCACGTTCTCTAAGGGAAGTGTGAATG'
+
