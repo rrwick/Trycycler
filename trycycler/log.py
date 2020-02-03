@@ -41,6 +41,10 @@ YELLOW = '\033[93m'
 DIM = '\033[2m'
 
 
+def bold(text):
+    return BOLD + text + END_FORMATTING
+
+
 def bold_yellow_underline(text):
     return YELLOW + BOLD + UNDERLINE + text + END_FORMATTING
 

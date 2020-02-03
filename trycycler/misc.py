@@ -195,3 +195,8 @@ def means_of_slices(iterable, slice_size):
             yield sum(s) / len(s)
         else:
             return
+
+
+def check_python_version():
+    if sys.version_info.major < 3 or sys.version_info.minor < 6:
+        sys.exit('Error: Trycycler requires Python 3.6 or later')
