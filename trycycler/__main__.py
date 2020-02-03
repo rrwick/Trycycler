@@ -16,7 +16,7 @@ import argparse
 import pathlib
 import sys
 
-
+from .cluster import cluster
 from .consensus import consensus
 from .help_formatter import MyParser, MyHelpFormatter
 from .log import bold
@@ -70,9 +70,9 @@ def cluster_subparser(subparsers):
                                   formatter_class=MyHelpFormatter, add_help=False)
 
     required_args = group.add_argument_group('Required arguments')
-    required_args.add_argument('-c', '--contigs', type=str, required=True, nargs='+',
-                               help='Input contigs to be reconciled (multiple FASTA files '
-                                    'required with one contig per file)')
+    required_args.add_argument('-a', '--assemblies', type=str, required=True, nargs='+',
+                               help='Input assemblies whose contigs will be clustered (multiple '
+                                    'FASTA files)')
     required_args.add_argument('-o', '--out_dir', type=pathlib.Path, required=True,
                                help='Output directory')
 

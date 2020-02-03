@@ -11,14 +11,10 @@ details. You should have received a copy of the GNU General Public License along
 If not, see <http://www.gnu.org/licenses/>.
 """
 
-import os
-import pathlib
-import subprocess
 import sys
-import tempfile
 
 from .log import log, section_header, explanation, dim, red
-from .misc import write_seq_to_fasta, reverse_complement
+from .mash import get_mash_dist_matrix
 from . import settings
 
 
@@ -36,7 +32,7 @@ def initial_sanity_check(seqs):
     check_length_ratios(length_matrix)
 
     log('Mash distances:')
-    mash_matrix = get_mash_dist_matrix(seq_names, seqs)
+    mash_matrix = get_mash_dist_matrix(seq_names, seqs, settings.MASH_DISTANCE_THRESHOLD)
     check_mash_distances(mash_matrix)
 
     log('Contigs have passed the initial check - they seem sufficiently close to reconcile.')
@@ -63,34 +59,6 @@ def get_length_ratio_matrix(seq_names, seqs):
         log()
     log()
     return length_matrix
-
-
-def get_mash_dist_matrix(seq_names, seqs):
-    with tempfile.TemporaryDirectory() as temp_dir:
-        temp_dir = pathlib.Path(temp_dir)
-        pos_sketches, neg_sketches = make_mash_sketches(seq_names, seqs, temp_dir)
-        mash_matrix = {}
-        for a in seq_names:
-            log(f'  {a}: ', end='')
-            for b in seq_names:
-                if a == b:
-                    distance = 0.0
-                else:
-                    distance = min(get_mash_dist(pos_sketches[a], pos_sketches[b]),
-                                   get_mash_dist(pos_sketches[a], neg_sketches[b]))
-                    mash_matrix[(a, b)] = distance
-                if a == b:
-                    log(dim(f'{distance:.3f}'), end='')
-                elif distance > settings.MASH_DISTANCE_THRESHOLD:
-                    log(red(f'{distance:.3f}'), end='')
-                else:
-                    log(f'{distance:.3f}', end='')
-                if b != seq_names[-1]:  # if not the last one in the row
-                    log('  ', end='')
-                mash_matrix[(b, a)] = distance
-            log()
-    log()
-    return mash_matrix
 
 
 def check_length_ratios(length_matrix):
@@ -124,34 +92,3 @@ def check_mash_distances(mash_matrix):
     max_dist = mash_matrix[max_pair]
     if max_dist > settings.MASH_DISTANCE_THRESHOLD:
         sys.exit(f'Error: there is too much Mash distance between contigs')
-
-
-def make_mash_sketches(seq_names, seqs, temp_dir):
-    pos_sketches, neg_sketches = {}, {}
-    for seq_name in seq_names:
-        seq_pos = seqs[seq_name]
-        seq_neg = reverse_complement(seq_pos)
-        fasta_pos = temp_dir / (seq_name + '_pos.fasta')
-        fasta_neg = temp_dir / (seq_name + '_neg.fasta')
-        write_seq_to_fasta(seq_pos, seq_name, fasta_pos)
-        write_seq_to_fasta(seq_neg, seq_name, fasta_neg)
-        sketch_pos = temp_dir / (seq_name + '_pos.msh')
-        sketch_neg = temp_dir / (seq_name + '_neg.msh')
-        with open(os.devnull, 'w') as dev_null:
-            _ = subprocess.check_output(['mash', 'sketch', '-n', '-o', str(sketch_pos),
-                                         str(fasta_pos)], stderr=dev_null)
-        with open(os.devnull, 'w') as dev_null:
-            _ = subprocess.check_output(['mash', 'sketch', '-n', '-o', str(sketch_neg),
-                                         str(fasta_neg)], stderr=dev_null)
-        pos_sketches[seq_name] = sketch_pos
-        neg_sketches[seq_name] = sketch_neg
-    return pos_sketches, neg_sketches
-
-
-def get_mash_dist(sketch_a, sketch_b):
-    with open(os.devnull, 'w') as dev_null:
-        out = subprocess.check_output(['mash', 'dist', str(sketch_a), str(sketch_b)],
-                                      stderr=dev_null)
-    out = out.decode()
-    parts = out.split('\t')
-    return float(parts[2])
