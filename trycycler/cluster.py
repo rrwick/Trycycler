@@ -11,11 +11,16 @@ details. You should have received a copy of the GNU General Public License along
 If not, see <http://www.gnu.org/licenses/>.
 """
 
+import collections
 import pathlib
 import string
 import subprocess
 import sys
 import tempfile
+
+from scipy.cluster.hierarchy import dendrogram, linkage, fcluster
+import scipy.spatial.distance as ssd
+import numpy as np
 
 from .log import log, section_header, explanation
 from .mash import get_mash_dist_matrix
@@ -26,8 +31,9 @@ def cluster(args):
     welcome_message()
     check_inputs_and_requirements(args)
     seqs, fasta_names = load_assembly_sequences(args.assemblies)
-    phylip = distance_matrix(seqs, args.distance, args.out_dir)
-    build_tree(phylip, args.out_dir)
+    matrix, phylip = distance_matrix(seqs, args.distance, args.out_dir)
+    build_tree(phylip)
+    complete_linkage(seqs, matrix, args.distance, args.out_dir)
 
 
 def welcome_message():
@@ -101,7 +107,8 @@ def distance_matrix(seqs, distance, out_dir):
     explanation('Mash is used to build a distance matrix of all contigs in the assemblies.')
     seq_names = list(seqs.keys())
     mash_matrix = get_mash_dist_matrix(seq_names, seqs, distance)
-    return save_matrix_to_phylip(seq_names, mash_matrix, out_dir)
+    phylip = save_matrix_to_phylip(seq_names, mash_matrix, out_dir)
+    return mash_matrix, phylip
 
 
 def save_matrix_to_phylip(seq_names, matrix, out_dir):
@@ -118,7 +125,7 @@ def save_matrix_to_phylip(seq_names, matrix, out_dir):
     return phylip
 
 
-def build_tree(phylip, out_dir):
+def build_tree(phylip):
     section_header('Build FastME tree')
     explanation('R (ape and phangorn) are used to build a FastME tree of the relationships '
                 'between the contigs.')
@@ -127,6 +134,7 @@ def build_tree(phylip, out_dir):
         tree_script, newick = create_tree_script(temp_dir, phylip)
         log(f'saving tree: {newick}')
         subprocess.check_output(['Rscript', tree_script])
+    log('')
 
 
 def create_tree_script(temp_dir, phylip):
@@ -143,3 +151,39 @@ def create_tree_script(temp_dir, phylip):
         f.write('tree <- midpoint(tree)\n')
         f.write(f'write.tree(tree, "{newick}")\n')
     return str(tree_script), pathlib.Path(newick).relative_to(pathlib.Path.cwd())
+
+
+def complete_linkage(seqs, distances, threshold, out_dir):
+    section_header('Clustering')
+    explanation('The contigs are now split into clusters using a complete-linkage approach.')
+    seq_names = list(seqs.keys())
+
+    # Build the distance matrix as a numpy array.
+    matrix = []
+    for x in seq_names:
+        row = [distances[(x, y)] for y in seq_names]
+        matrix.append(row)
+    matrix = np.array(matrix)
+    np.set_printoptions(precision=3, edgeitems=10, linewidth=1000)
+
+    dist_array = ssd.squareform(matrix)
+    z = linkage(dist_array, 'complete')
+    result = fcluster(z, threshold, criterion='distance')
+
+    clusters = collections.defaultdict(list)
+    for name, cluster_name in zip(seq_names, result):
+        clusters[cluster_name].append((name, seqs[name]))
+
+    cluster_names = sorted(clusters.keys())
+    for cluster_name in cluster_names:
+        cluster_dir = out_dir / f'cluster_{cluster_name:02d}'
+        cluster_dir.mkdir()
+        log(f'{cluster_dir}:')
+        for name, seq in clusters[cluster_name]:
+            seq_fasta = cluster_dir / f'{name}.fasta'
+            with open(seq_fasta, 'wt') as f:
+                f.write(f'>{name}\n')
+                f.write(f'{seq}\n')
+            log(f'  {seq_fasta} ({len(seq):,} bp)')
+        log('')
+    return clusters

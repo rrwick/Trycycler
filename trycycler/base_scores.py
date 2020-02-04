@@ -15,6 +15,7 @@ import matplotlib
 import matplotlib.pyplot as plt
 import multiprocessing
 import numpy as np
+import pathlib
 import re
 
 from .alignment import align_reads_to_seq
@@ -239,7 +240,7 @@ def plot_per_base_scores(seq_name, per_base_scores, fasta_names, out_dir, plot_m
 
     plot_dir = out_dir / 'plots'
     plot_dir.mkdir(exist_ok=True)
-    plot_filename = plot_dir / (fasta_names[seq_name] + '.png')
+    plot_filename = plot_dir / (pathlib.Path(fasta_names[seq_name]).name + '.png')
     plt.savefig(str(plot_filename))
 
     return plot_max

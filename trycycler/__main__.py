@@ -21,6 +21,7 @@ from .consensus import consensus
 from .help_formatter import MyParser, MyHelpFormatter
 from .log import bold
 from .misc import get_default_thread_count, check_python_version
+from .partition import partition
 from .version import __version__
 
 
@@ -29,6 +30,9 @@ def main():
     args = parse_args(sys.argv[1:])
     if args.subparser_name == 'cluster':
         cluster(args)
+
+    elif args.subparser_name == 'partition':
+        partition(args)
 
     elif args.subparser_name == 'consensus':
         consensus(args)
@@ -40,6 +44,7 @@ def parse_args(args):
 
     subparsers = parser.add_subparsers(title='Commands', dest='subparser_name')
     cluster_subparser(subparsers)
+    partition_subparser(subparsers)
     consensus_subparser(subparsers)
 
     longest_choice_name = max(len(c) for c in subparsers.choices)
@@ -79,6 +84,29 @@ def cluster_subparser(subparsers):
     setting_args = group.add_argument_group('Settings')
     setting_args.add_argument('-d', '--distance', type=float, default=0.01,
                               help='Mash distance complete-linkage clustering threshold')
+    setting_args.add_argument('-t', '--threads', type=int, default=get_default_thread_count(),
+                              help='Number of threads to use for alignment')
+
+    other_args = group.add_argument_group('Other')
+    other_args.add_argument('-h', '--help', action='help', default=argparse.SUPPRESS,
+                            help='Show this help message and exit')
+    other_args.add_argument('--version', action='version', version='Trycycler v' + __version__,
+                            help="Show program's version number and exit")
+
+
+def partition_subparser(subparsers):
+    group = subparsers.add_parser('partition', description='partition reads by cluster',
+                                  formatter_class=MyHelpFormatter, add_help=False)
+
+    required_args = group.add_argument_group('Required arguments')
+    required_args.add_argument('-c', '--cluster_dirs', type=pathlib.Path, required=True, nargs='+',
+                               help='Cluster directories (each containing FASTA files)')
+    required_args.add_argument('-r', '--reads', type=str, required=True,
+                               help='Long reads (FASTQ format) used to generate the assemblies')
+
+    setting_args = group.add_argument_group('Settings')
+    setting_args.add_argument('--coverage', type=float, default=75.0,
+                              help='Minimum allowed read percent coverage per alignment')
     setting_args.add_argument('-t', '--threads', type=int, default=get_default_thread_count(),
                               help='Number of threads to use for alignment')
 

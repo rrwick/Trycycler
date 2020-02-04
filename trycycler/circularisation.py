@@ -55,7 +55,7 @@ def circularise_one_seq_with_all_others(name_a, seqs, reads, threads):
             if trim_count > settings.CIRCULARISATION_MAX_TRIM_COUNT:
                 break
             log(f'  failed to circularise {name_a}, trimming '
-                f'{settings.CIRCULARISATION_TRIM_SIZE} from start/end and trying again...')
+                f'{settings.CIRCULARISATION_TRIM_SIZE} bp from start/end and trying again...')
             seq_a = seq_a[settings.CIRCULARISATION_TRIM_SIZE:-settings.CIRCULARISATION_TRIM_SIZE]
             trim_count += 1
 

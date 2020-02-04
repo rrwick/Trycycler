@@ -84,15 +84,17 @@ def align_a_to_b(seq_a, seq_b):
     return alignments
 
 
-def align_reads_to_seq(reads, seq, threads):
+def align_reads_to_seq(reads, seq, threads, include_cigar=True):
     with tempfile.TemporaryDirectory() as temp_dir:
         temp_dir = pathlib.Path(temp_dir)
         temp_fasta = temp_dir / 'seq.fasta'
         write_seq_to_fasta(seq, 'seq', temp_fasta)
+        minimap2_command = ['minimap2']
+        if include_cigar:
+            minimap2_command += ['--eqx', '-c']
+        minimap2_command += ['-x', 'map-ont', '-t', str(threads), str(temp_fasta), str(reads)]
         with open(os.devnull, 'w') as dev_null:
-            out = subprocess.check_output(['minimap2', '--eqx', '-c', '-x', 'map-ont', '-t',
-                                           str(threads), str(temp_fasta), str(reads)],
-                                          stderr=dev_null)
+            out = subprocess.check_output(minimap2_command, stderr=dev_null)
     out = out.decode()
     alignment_lines = out.splitlines()
     alignments = [Alignment(x) for x in alignment_lines]

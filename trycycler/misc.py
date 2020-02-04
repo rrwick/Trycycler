@@ -83,14 +83,15 @@ def iterate_fastq(filename):
             if not line.startswith('@'):
                 continue
             name = line[1:].split()[0]
+            header = line
             sequence = next(fastq).strip()
             _ = next(fastq)
             qualities = next(fastq).strip()
-            yield name, sequence, qualities
+            yield name, header, sequence, qualities
 
 
 def get_fastq_stats(filename):
-    seq_lengths = [len(s) for _, s, _ in iterate_fastq(filename)]
+    seq_lengths = [len(s) for _, _, s, _ in iterate_fastq(filename)]
     read_count = len(seq_lengths)
     total_size = sum(seq_lengths)
     n50 = get_n50(seq_lengths)

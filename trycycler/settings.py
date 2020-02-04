@@ -15,7 +15,7 @@ details. You should have received a copy of the GNU General Public License along
 If not, see <http://www.gnu.org/licenses/>.
 """
 
-MAX_INPUT_CONTIGS = 10
+MAX_INPUT_CONTIGS = 20
 
 LENGTH_DIFFERENCE_THRESHOLD = 0.8
 MASH_DISTANCE_THRESHOLD = 0.025
