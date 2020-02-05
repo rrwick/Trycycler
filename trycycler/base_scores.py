@@ -41,8 +41,9 @@ def get_per_base_scores(seqs, reads, circular, threads, plot_qual, fasta_names, 
         scores, total = get_one_seq_per_base_scores(seq, reads, circular, threads)
         per_base_scores[seq_name] = scores
         if plot_qual:
-            plot_max = plot_per_base_scores(seq_name, per_base_scores[seq_name], fasta_names,
-                                            out_dir, plot_max, total)
+            averaging_window = max(1, min(100, len(scores) // 2000))
+            plot_max = plot_per_base_scores(seq_name, scores, fasta_names, out_dir, plot_max, total,
+                                            averaging_window=averaging_window)
         log()
     return per_base_scores, plot_max
 
@@ -223,7 +224,7 @@ matplotlib.projections.register_projection(MyAxes)
 def plot_per_base_scores(seq_name, per_base_scores, fasta_names, out_dir, plot_max, total,
                          averaging_window=100):
     if plot_max is None:
-        plot_max = max(per_base_scores) * 1.1
+        plot_max = max(per_base_scores) * 1.2
     positions = list(range(len(per_base_scores)))
 
     score_means = list(means_of_slices(per_base_scores, averaging_window))

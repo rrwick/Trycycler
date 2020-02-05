@@ -28,14 +28,14 @@ def partition(args):
 def welcome_message():
     section_header('Starting Trycycler partitioning')
     explanation('Trycycler partition is a tool for partitioning reads by cluster. I.e. each read '
-                'will be assigned to the cluster it best aligns to.')
+                'will be assigned to one cluster and saved in a file for that cluster.')
 
 
 def check_inputs_and_requirements(args):
     check_input_reads(args.reads)
     check_input_clusters(args.cluster_dirs)
     check_required_software()
-    best_clusters = align_reads(args.cluster_dirs, args.reads, args.threads, args.coverage)
+    best_clusters = align_reads(args.cluster_dirs, args.reads, args.threads)
     save_reads_per_cluster(args.cluster_dirs, args.reads, best_clusters)
 
 
@@ -71,11 +71,10 @@ def check_required_software():
     # TODO
 
 
-def align_reads(cluster_dirs, reads, threads, coverage_threshold):
+def align_reads(cluster_dirs, reads, threads):
     section_header('Aligning reads to each contig')
-    explanation('The reads are independently aligned to each of the contigs. Alignments are only '
-                'kept if they cover a sufficient fraction of the read, which helps to eliminate '
-                'some chimeric reads.')
+    explanation('The reads are independently aligned to each of the contigs and Trycycler will '
+                'remember their single best alignment.')
     best_clusters = {}
     best_matching_bases = collections.defaultdict(int)
     for d in cluster_dirs:
@@ -87,10 +86,11 @@ def align_reads(cluster_dirs, reads, threads, coverage_threshold):
             log(f'{f} ({len(seq):,} bp)', end=': ')
             doubled_seq = seq + seq
             alignments = align_reads_to_seq(reads, doubled_seq, threads, include_cigar=False)
-            alignments = [a for a in alignments if a.ref_start < seq_len]
-            alignments = [a for a in alignments if a.query_cov >= coverage_threshold]
-            log(f'{len(alignments):,} alignments')
 
+            # Toss out alignments entirely in the second half of the doubled sequence.
+            alignments = [a for a in alignments if a.ref_start < seq_len]
+
+            log(f'{len(alignments):,} alignments')
             for a in alignments:
                 read_name = a.query_name
                 if a.matching_bases > best_matching_bases[read_name]:

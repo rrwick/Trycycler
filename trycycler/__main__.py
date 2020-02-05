@@ -105,8 +105,6 @@ def partition_subparser(subparsers):
                                help='Long reads (FASTQ format) used to generate the assemblies')
 
     setting_args = group.add_argument_group('Settings')
-    setting_args.add_argument('--coverage', type=float, default=75.0,
-                              help='Minimum allowed read percent coverage per alignment')
     setting_args.add_argument('-t', '--threads', type=int, default=get_default_thread_count(),
                               help='Number of threads to use for alignment')
 

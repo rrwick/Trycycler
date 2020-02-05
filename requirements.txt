@@ -1,3 +1,4 @@
 edlib
-numpy
 matplotlib
+numpy
+scipy
