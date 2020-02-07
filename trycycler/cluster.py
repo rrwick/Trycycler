@@ -31,9 +31,10 @@ def cluster(args):
     welcome_message()
     check_inputs_and_requirements(args)
     seqs, fasta_names = load_assembly_sequences(args.assemblies)
-    matrix, phylip = distance_matrix(seqs, args.distance, args.out_dir)
-    build_tree(phylip)
-    complete_linkage(seqs, matrix, args.distance, args.out_dir)
+    seq_names = list(seqs.keys())
+    matrix = distance_matrix(seqs, seq_names, args.distance, args.out_dir)
+    cluster_numbers = complete_linkage(seqs, matrix, args.distance, args.out_dir)
+    build_tree(seq_names, seqs, matrix, args.out_dir, cluster_numbers)
 
 
 def welcome_message():
@@ -74,7 +75,7 @@ def check_output_directory(directory):
     if directory.is_file():
         sys.exit(f'Error: output directory ({directory}) already exists as a file')
     if directory.is_dir():
-        log(f'Output directory ({directory}) already exists - files may be overwritten.')
+        sys.exit(f'Error: output directory ({directory}) already exists')
     else:
         log(f'Creating output directory: {directory}')
         directory.mkdir(parents=True)
@@ -97,28 +98,28 @@ def load_assembly_sequences(filenames):
         fasta_names[letter] = f
         seqs = load_fasta(f)
         for name, seq in seqs:
+            name = name.replace('#', '_')  # hashes in names can sometimes cause downstream problems
             full_name = f'{letter}_{name}'
             assembly_seqs[full_name] = seq
     return assembly_seqs, fasta_names
 
 
-def distance_matrix(seqs, distance, out_dir):
+def distance_matrix(seqs, seq_names, distance, out_dir):
     section_header('Distance matrix')
     explanation('Mash is used to build a distance matrix of all contigs in the assemblies.')
-    seq_names = list(seqs.keys())
     mash_matrix = get_mash_dist_matrix(seq_names, seqs, distance)
-    phylip = save_matrix_to_phylip(seq_names, mash_matrix, out_dir)
-    return mash_matrix, phylip
+    return mash_matrix
 
 
-def save_matrix_to_phylip(seq_names, matrix, out_dir):
+def save_matrix_to_phylip(seq_names, seqs, matrix, out_dir, cluster_numbers):
     phylip = out_dir / 'contigs.phylip'
     log(f'saving distance matrix: {phylip}')
     with open(phylip, 'wt') as f:
         f.write(str(len(seq_names)))
         f.write('\n')
         for a in seq_names:
-            f.write(a)
+            seq_len = len(seqs[a])
+            f.write(f'cluster_{cluster_numbers[a]}_{a}_{seq_len}_bp')
             for b in seq_names:
                 f.write('\t')
                 f.write(str(matrix[(a, b)]))
@@ -126,10 +127,11 @@ def save_matrix_to_phylip(seq_names, matrix, out_dir):
     return phylip
 
 
-def build_tree(phylip):
+def build_tree(seq_names, seqs, matrix, out_dir, cluster_numbers):
     section_header('Build FastME tree')
     explanation('R (ape and phangorn) are used to build a FastME tree of the relationships '
                 'between the contigs.')
+    phylip = save_matrix_to_phylip(seq_names, seqs, matrix, out_dir, cluster_numbers)
     with tempfile.TemporaryDirectory() as temp_dir:
         temp_dir = pathlib.Path(temp_dir)
         tree_script, newick = create_tree_script(temp_dir, phylip)
@@ -175,16 +177,23 @@ def complete_linkage(seqs, distances, threshold, out_dir):
     for name, cluster_name in zip(seq_names, result):
         clusters[cluster_name].append((name, seqs[name]))
 
-    cluster_names = sorted(clusters.keys())
-    for cluster_name in cluster_names:
-        cluster_dir = out_dir / f'cluster_{cluster_name:03d}' / '1_contigs'
+    # Sort clusters based on the sum of their sequence lengths. This makes cluster with longer
+    # sequences (e.g. chromosomes) and more representative sequences come earlier in the list.
+    cluster_names = sorted(clusters.keys(), reverse=True,
+                           key=lambda x: sum(len(s[1]) for s in clusters[x]))
+
+    cluster_numbers = {}
+    for i, cluster_name in enumerate(cluster_names):
+        cluster_num = i + 1
+        cluster_dir = out_dir / f'cluster_{cluster_num:03d}' / '1_contigs'
         cluster_dir.mkdir(parents=True)
         log(f'{cluster_dir}:')
         for name, seq in clusters[cluster_name]:
+            cluster_numbers[name] = cluster_num
             seq_fasta = cluster_dir / f'{name}.fasta'
             with open(seq_fasta, 'wt') as f:
                 f.write(f'>{name}\n')
                 f.write(f'{seq}\n')
             log(f'  {seq_fasta} ({len(seq):,} bp)')
         log()
-    return clusters
+    return cluster_numbers

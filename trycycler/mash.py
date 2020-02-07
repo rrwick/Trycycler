@@ -18,6 +18,7 @@ import tempfile
 
 from .log import log, dim, red
 from .misc import write_seq_to_fasta, reverse_complement
+from . import settings
 
 
 def get_mash_dist_matrix(seq_names, seqs, distance_threshold):
@@ -78,4 +79,4 @@ def get_mash_dist(sketch_a, sketch_b):
                                       stderr=dev_null)
     out = out.decode()
     parts = out.split('\t')
-    return float(parts[2])
+    return min(float(parts[2]), settings.MAX_MASH_DISTANCE)
