@@ -18,13 +18,13 @@ import subprocess
 import sys
 import tempfile
 
-from scipy.cluster.hierarchy import dendrogram, linkage, fcluster
+from scipy.cluster.hierarchy import linkage, fcluster
 import scipy.spatial.distance as ssd
 import numpy as np
 
 from .log import log, section_header, explanation
 from .mash import get_mash_dist_matrix
-from .misc import get_sequence_file_type, load_fasta, get_fastq_stats
+from .misc import get_sequence_file_type, load_fasta
 
 
 def cluster(args):
@@ -112,7 +112,8 @@ def distance_matrix(seqs, distance, out_dir):
 
 
 def save_matrix_to_phylip(seq_names, matrix, out_dir):
-    phylip = out_dir / 'mash.phylip'
+    phylip = out_dir / 'contigs.phylip'
+    log(f'saving distance matrix: {phylip}')
     with open(phylip, 'wt') as f:
         f.write(str(len(seq_names)))
         f.write('\n')
@@ -134,7 +135,7 @@ def build_tree(phylip):
         tree_script, newick = create_tree_script(temp_dir, phylip)
         log(f'saving tree: {newick}')
         subprocess.check_output(['Rscript', tree_script])
-    log('')
+    log()
 
 
 def create_tree_script(temp_dir, phylip):
@@ -176,8 +177,8 @@ def complete_linkage(seqs, distances, threshold, out_dir):
 
     cluster_names = sorted(clusters.keys())
     for cluster_name in cluster_names:
-        cluster_dir = out_dir / f'cluster_{cluster_name:02d}'
-        cluster_dir.mkdir()
+        cluster_dir = out_dir / f'cluster_{cluster_name:03d}' / '1_contigs'
+        cluster_dir.mkdir(parents=True)
         log(f'{cluster_dir}:')
         for name, seq in clusters[cluster_name]:
             seq_fasta = cluster_dir / f'{name}.fasta'
@@ -185,5 +186,5 @@ def complete_linkage(seqs, distances, threshold, out_dir):
                 f.write(f'>{name}\n')
                 f.write(f'{seq}\n')
             log(f'  {seq_fasta} ({len(seq):,} bp)')
-        log('')
+        log()
     return clusters

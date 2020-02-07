@@ -15,9 +15,8 @@ import collections
 import sys
 
 from .alignment import align_reads_to_seq
-from .consensus import check_input_reads
 from .log import log, section_header, explanation
-from .misc import get_sequence_file_type, load_fasta, iterate_fastq
+from .misc import get_sequence_file_type, load_fasta, iterate_fastq, get_fastq_stats
 
 
 def partition(args):
@@ -39,26 +38,37 @@ def check_inputs_and_requirements(args):
     save_reads_per_cluster(args.cluster_dirs, args.reads, best_clusters)
 
 
+def check_input_reads(filename):
+    read_type = get_sequence_file_type(filename)
+    if read_type != 'FASTQ':
+        sys.exit(f'Error: input reads ({filename}) are not in FASTQ format')
+    log(f'Input reads: {filename}')
+    read_count, total_size, n50 = get_fastq_stats(filename)
+    log(f'  {read_count:,} reads ({total_size:,} bp)')
+    log(f'  N50 = {n50:,} bp')
+    log()
+
+
+
 def check_input_clusters(cluster_dirs):
     if len(cluster_dirs) < 1:
         sys.exit('Error: one or more input cluster directories are required')
     log(f'Input clusters:')
     for d in cluster_dirs:
-        log(f'  {d}:')
-        contigs = sorted(d.glob("*.fasta"))
+        contigs = sorted(d.glob('2_all_seqs.fasta'))
         if not contigs:
-            sys.exit(f'Error: there are no FASTA files in {d}')
-        for f in contigs:
-            contig_type = get_sequence_file_type(f)
-            if contig_type != 'FASTA':
-                sys.exit(f'Error: input contig file ({f}) is not in FASTA format')
-            seqs = load_fasta(f)
-            if len(seqs) == 0:
-                sys.exit(f'Error: contig file ({f}) contains no sequences')
-            if len(seqs) > 1:
-                sys.exit(f'Error: contig file ({f}) contains multiple sequences')
-            contig_len = len(seqs[0][1])
-            log(f'    {f.name} ({contig_len:,} bp)')
+            sys.exit(f'Error: there is not 2_all_seqs.fasta file in {d}')
+        assert len(contigs) == 1
+        f = contigs[0]
+        contig_type = get_sequence_file_type(f)
+        if contig_type != 'FASTA':
+            sys.exit(f'Error: input contig file ({f}) is not in FASTA format')
+        seqs = load_fasta(f)
+        if len(seqs) == 0:
+            sys.exit(f'Error: contig file ({f}) contains no sequences')
+        noun = 'contig' if len(seqs) == 1 else 'contigs'
+        mean_len = sum(len(s[1]) for s in seqs) // len(seqs)
+        log(f'  {f}: {len(seqs)} {noun}, mean length = {mean_len:,} bp')
     log()
 
 
@@ -74,28 +84,28 @@ def check_required_software():
 def align_reads(cluster_dirs, reads, threads):
     section_header('Aligning reads to each contig')
     explanation('The reads are independently aligned to each of the contigs and Trycycler will '
-                'remember their single best alignment.')
+                'remember the single best alignment for each read.')
     best_clusters = {}
     best_matching_bases = collections.defaultdict(int)
     for d in cluster_dirs:
         contigs = sorted(d.glob("*.fasta"))
         for f in contigs:
             seqs = load_fasta(f)
-            seq = seqs[0][1]
-            seq_len = len(seq)
-            log(f'{f} ({len(seq):,} bp)', end=': ')
-            doubled_seq = seq + seq
-            alignments = align_reads_to_seq(reads, doubled_seq, threads, include_cigar=False)
+            for name, seq in seqs:
+                seq_len = len(seq)
+                log(f'{f}, {name} ({len(seq):,} bp)', end=': ')
+                doubled_seq = seq + seq
+                alignments = align_reads_to_seq(reads, doubled_seq, threads, include_cigar=False)
 
-            # Toss out alignments entirely in the second half of the doubled sequence.
-            alignments = [a for a in alignments if a.ref_start < seq_len]
+                # Toss out alignments entirely in the second half of the doubled sequence.
+                alignments = [a for a in alignments if a.ref_start < seq_len]
 
-            log(f'{len(alignments):,} alignments')
-            for a in alignments:
-                read_name = a.query_name
-                if a.matching_bases > best_matching_bases[read_name]:
-                    best_clusters[read_name] = d
-                    best_matching_bases[read_name] = a.matching_bases
+                log(f'{len(alignments):,} alignments')
+                for a in alignments:
+                    read_name = a.query_name
+                    if a.matching_bases > best_matching_bases[read_name]:
+                        best_clusters[read_name] = d
+                        best_matching_bases[read_name] = a.matching_bases
     log()
 
     return best_clusters
@@ -110,7 +120,7 @@ def save_reads_per_cluster(cluster_dirs, reads, best_clusters):
 
 
 def save_reads_one_cluster(cluster_dir, reads, best_clusters):
-    cluster_reads = cluster_dir / 'reads.fastq'
+    cluster_reads = cluster_dir / '4_reads.fastq'
     log(f'{cluster_reads}:')
     total_read_count, total_read_bases = 0, 0
     cluster_read_count, cluster_read_bases = 0, 0

@@ -15,7 +15,6 @@ import matplotlib
 import matplotlib.pyplot as plt
 import multiprocessing
 import numpy as np
-import pathlib
 import re
 
 from .alignment import align_reads_to_seq
@@ -24,7 +23,7 @@ from .misc import means_of_slices
 from . import settings
 
 
-def get_per_base_scores(seqs, reads, circular, threads, plot_qual, fasta_names, out_dir,
+def get_per_base_scores(seqs, cluster_dir, circular, threads, plot_qual,
                         plot_max=None, consensus=False):
     if consensus:
         section_header('Consensus quality scores')
@@ -35,6 +34,8 @@ def get_per_base_scores(seqs, reads, circular, threads, plot_qual, fasta_names, 
         explanation('Trycycler now aligns all reads to each sequence and uses the alignments to '
                     'create per-base quality scores for the entire sequence.')
 
+    reads = cluster_dir / '4_reads.fastq'
+
     per_base_scores = {}
     for seq_name, seq in seqs.items():
         log(f'Aligning reads to sequence {seq_name}:')
@@ -42,7 +43,7 @@ def get_per_base_scores(seqs, reads, circular, threads, plot_qual, fasta_names, 
         per_base_scores[seq_name] = scores
         if plot_qual:
             averaging_window = max(1, min(100, len(scores) // 2000))
-            plot_max = plot_per_base_scores(seq_name, scores, fasta_names, out_dir, plot_max, total,
+            plot_max = plot_per_base_scores(seq_name, scores, cluster_dir, plot_max, total,
                                             averaging_window=averaging_window)
         log()
     return per_base_scores, plot_max
@@ -221,7 +222,7 @@ class MyAxes(matplotlib.axes.Axes):
 matplotlib.projections.register_projection(MyAxes)
 
 
-def plot_per_base_scores(seq_name, per_base_scores, fasta_names, out_dir, plot_max, total,
+def plot_per_base_scores(seq_name, per_base_scores, out_dir, plot_max, total,
                          averaging_window=100):
     if plot_max is None:
         plot_max = max(per_base_scores) * 1.2
@@ -235,13 +236,16 @@ def plot_per_base_scores(seq_name, per_base_scores, fasta_names, out_dir, plot_m
 
     plt.xlabel('contig position')
     plt.ylabel('quality score')
-    plt.title(f'{seq_name} ({fasta_names[seq_name]}), total = {total:,}')
+    plt.title(f'{seq_name}, total = {total:,}')
     ax1.set_xlim([0, len(per_base_scores)])
     ax1.set_ylim([0, plot_max])
 
     plot_dir = out_dir / 'plots'
     plot_dir.mkdir(exist_ok=True)
-    plot_filename = plot_dir / (pathlib.Path(fasta_names[seq_name]).name + '.png')
+    if seq_name == 'consensus':
+        plot_filename = plot_dir / 'consensus.png'
+    else:
+        plot_filename = plot_dir / ('seq_' + seq_name + '.png')
     plt.savefig(str(plot_filename))
 
     return plot_max

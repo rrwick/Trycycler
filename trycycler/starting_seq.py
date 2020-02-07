@@ -83,6 +83,7 @@ def look_for_known_starting_seq(seqs, threads):
         starting_sequences, descriptions = load_starting_sequences(starting_genes)
         starting_seq = starting_sequences[starting_seq_name]
         log(f'Found starting sequence {starting_seq_name} ({descriptions[starting_seq_name]})')
+        log(f'  {starting_seq[:50]}...')
 
     log()
     return starting_seq
@@ -98,7 +99,10 @@ def rotate_to_starting_seq(seqs, starting_seq):
     rotated_seqs = {}
     for seq_name, seq in seqs.items():
         alignments = align_a_to_b(starting_seq, seq)
-        alignments = [a for a in alignments if a.query_cov == 100.0]
+        alignments = [a for a in alignments
+                      if a.percent_identity >= settings.KNOWN_STARTING_SEQ_MIN_IDENTITY
+                      and a.query_cov >= settings.KNOWN_STARTING_SEQ_MIN_COVERAGE
+                      and a.query_start == 0]
         if len(alignments) == 0:
             sys.exit(f'Error: failed to find starting sequence in {seq_name}')
         elif len(alignments) > 1:

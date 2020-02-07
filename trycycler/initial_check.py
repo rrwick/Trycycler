@@ -15,10 +15,9 @@ import sys
 
 from .log import log, section_header, explanation, dim, red
 from .mash import get_mash_dist_matrix
-from . import settings
 
 
-def initial_sanity_check(seqs):
+def initial_sanity_check(seqs, max_mash_dist, max_length_diff):
     section_header('Checking closeness of contigs')
     explanation('Before proceeding, Trycycler ensures that the input contigs appear sufficiently '
                 'close to each other to make a consensus. If not, the program will quit and the '
@@ -28,19 +27,19 @@ def initial_sanity_check(seqs):
     seq_names = list(seqs.keys())
 
     log('Relative sequence lengths:')
-    length_matrix = get_length_ratio_matrix(seq_names, seqs)
-    check_length_ratios(length_matrix)
+    length_matrix = get_length_ratio_matrix(seq_names, seqs, max_length_diff)
+    check_length_ratios(length_matrix, max_length_diff)
 
     log('Mash distances:')
-    mash_matrix = get_mash_dist_matrix(seq_names, seqs, settings.MASH_DISTANCE_THRESHOLD)
-    check_mash_distances(mash_matrix)
+    mash_matrix = get_mash_dist_matrix(seq_names, seqs, max_mash_dist)
+    check_mash_distances(mash_matrix, max_mash_dist)
 
     log('Contigs have passed the initial check - they seem sufficiently close to reconcile.')
     log()
 
 
-def get_length_ratio_matrix(seq_names, seqs):
-    min_threshold, max_threshold = get_length_thresholds()
+def get_length_ratio_matrix(seq_names, seqs, max_length_diff):
+    min_threshold, max_threshold = get_length_thresholds(max_length_diff)
     length_matrix = {}
     for a in seq_names:
         log(f'  {a}: ', end='')
@@ -61,7 +60,7 @@ def get_length_ratio_matrix(seq_names, seqs):
     return length_matrix
 
 
-def check_length_ratios(length_matrix):
+def check_length_ratios(length_matrix, max_length_diff):
     """
     This function looks at the whole length ratio matrix and quits the program if any value is too
     out of bounds.
@@ -70,25 +69,25 @@ def check_length_ratios(length_matrix):
     max_pair = max(length_matrix, key=length_matrix.get)
     min_ratio = length_matrix[min_pair]
     max_ratio = length_matrix[max_pair]
-    min_threshold, max_threshold = get_length_thresholds()
+    min_threshold, max_threshold = get_length_thresholds(max_length_diff)
     if min_ratio < min_threshold or max_ratio > max_threshold:
         sys.exit('Error: there is too much length difference between contigs')
 
 
-def get_length_thresholds():
-    min_threshold = settings.LENGTH_DIFFERENCE_THRESHOLD
-    max_threshold = 1.0 / min_threshold
+def get_length_thresholds(max_length_diff):
+    max_threshold = max_length_diff
+    min_threshold = 1.0 / max_threshold
     assert min_threshold < 1.0
     assert max_threshold > 1.0
     return min_threshold, max_threshold
 
 
-def check_mash_distances(mash_matrix):
+def check_mash_distances(mash_matrix, max_mash_dist):
     """
     This function looks at the whole Mash distance matrix and quits the program if any value is too
     out of bounds.
     """
     max_pair = max(mash_matrix, key=mash_matrix.get)
     max_dist = mash_matrix[max_pair]
-    if max_dist > settings.MASH_DISTANCE_THRESHOLD:
+    if max_dist > max_mash_dist:
         sys.exit(f'Error: there is too much Mash distance between contigs')

@@ -18,6 +18,8 @@ import multiprocessing
 import os
 import sys
 
+from .log import log
+
 
 def get_compression_type(filename):
     """

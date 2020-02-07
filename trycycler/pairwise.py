@@ -25,7 +25,7 @@ def get_pairwise_alignments(seqs):
                 'sequences. This will allow it to \'jump\' from any sequence to the corresponding '
                 'position of any other sequence.')
     seq_names = list(seqs.keys())
-    seq_lengths = {name: len(seqs[name]) for name in seq_names}
+    # seq_lengths = {name: len(seqs[name]) for name in seq_names}
     pairwise_cigars = {}
     worst_identity = 100.0
     for i, a in enumerate(seq_names):
@@ -48,7 +48,7 @@ def get_pairwise_alignments(seqs):
                  f'({settings.MIN_ALLOWED_PAIRWISE_IDENTITY}%). Please remove offending '
                  f'sequences and try again.')
 
-    return get_all_pairwise_coordinates(seq_names, pairwise_cigars, seq_lengths)
+    return pairwise_cigars
 
 
 def get_all_pairwise_coordinates(seq_names, pairwise_cigars, seq_lengths):

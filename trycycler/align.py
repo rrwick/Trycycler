@@ -11,46 +11,50 @@ details. You should have received a copy of the GNU General Public License along
 If not, see <http://www.gnu.org/licenses/>.
 """
 
+import random
 import string
 import sys
 
-from .base_scores import get_per_base_scores
+from .circularisation import circularise
+from .initial_check import initial_sanity_check
 from .log import log, section_header, explanation
 from .misc import get_sequence_file_type, load_fasta, get_fastq_stats
-from .pairwise import get_all_pairwise_coordinates
+from .pairwise import get_pairwise_alignments
+from .starting_seq import get_starting_seq, rotate_to_starting_seq
+from . import settings
 
 
-def consensus(args):
+def align(args):
+    random.seed(0)
     welcome_message()
     check_inputs_and_requirements(args)
-    seqs, seq_names, seq_lengths = load_seqs(args.cluster_dir)
-    cluster_name = args.cluster_dir.name
-    pairwise_alignments = load_pairwise_alignments(args.cluster_dir, seq_names, seq_lengths)
+    seqs, fasta_names = load_contig_sequences(args.cluster_dir)
+    initial_sanity_check(seqs, args.max_mash_dist, args.max_length_diff)
+    starting_seq, seqs = get_starting_seq(seqs, args.threads)
     circular = not args.linear
-    per_base_scores, plot_max = get_per_base_scores(seqs, args.cluster_dir, circular, args.threads,
-                                                    args.plot_qual)
-    consensus_seq = get_consensus_seq(seqs, per_base_scores, pairwise_alignments)
-    save_seqs_to_fasta({cluster_name + '_consensus': consensus_seq},
-                       args.cluster_dir / '5_consensus.fasta')
-    get_per_base_scores({'consensus': consensus_seq}, args.cluster_dir, circular, args.threads,
-                        args.plot_qual, plot_max, consensus=True)
+    if circular:
+        seqs = circularise(seqs, args.reads, args.threads)
+        seqs = rotate_to_starting_seq(seqs, starting_seq)
+    save_seqs_to_fasta(seqs, args.cluster_dir / '2_all_seqs.fasta')
+    pairwise_alignments = get_pairwise_alignments(seqs)
+    save_pairwise_alignments(pairwise_alignments, args.cluster_dir / '3_pairwise_alignments')
 
 
 def welcome_message():
-    section_header('Starting Trycycler consensus')
-    explanation('Trycycler consensus is a tool for combining multiple contigs from the same '
-                'long-read set (e.g. assemblies from different assemblers) into a consensus '
-                'contig that takes the best parts of each.')
+    section_header('Starting Trycycler align')
+    explanation('Trycycler align is a tool for reconciling multiple alternative contigs with each '
+                'other.')
 
 
 def check_inputs_and_requirements(args):
-    check_input_reads(args.cluster_dir)
+    check_input_reads(args.reads)
     check_cluster_directory(args.cluster_dir)
-    check_seqs(args.cluster_dir)
+    check_input_contigs(args.cluster_dir)
     check_required_software()
 
 
-def load_contig_sequences(filenames):
+def load_contig_sequences(cluster_dir):
+    filenames = get_contigs_from_cluster_dir(cluster_dir)
     contig_seqs, fasta_names = {}, {}
     for i, f in enumerate(filenames):
         letter = string.ascii_uppercase[i]
@@ -61,8 +65,7 @@ def load_contig_sequences(filenames):
     return contig_seqs, fasta_names
 
 
-def check_input_reads(cluster_dir):
-    filename = cluster_dir / '4_reads.fastq'
+def check_input_reads(filename):
     read_type = get_sequence_file_type(filename)
     if read_type != 'FASTQ':
         sys.exit(f'Error: input reads ({filename}) are not in FASTQ format')
@@ -73,22 +76,38 @@ def check_input_reads(cluster_dir):
     log()
 
 
-def check_seqs(cluster_dir):
-    filename = cluster_dir / '2_all_seqs.fasta'
-    log(f'Input contigs: {filename}')
-    contig_type = get_sequence_file_type(filename)
-    if contig_type != 'FASTA':
-        sys.exit(f'Error: input contig file ({filename}) is not in FASTA format')
-    seqs = load_fasta(filename)
-    if len(seqs) == 0:
-        sys.exit(f'Error: input contig file ({filename}) contains no sequences')
+def check_input_contigs(cluster_dir):
+    filenames = get_contigs_from_cluster_dir(cluster_dir)
+    if len(filenames) < 2:
+        sys.exit('Error: two or more input contigs are required')
+    if len(filenames) > settings.MAX_INPUT_CONTIGS:
+        sys.exit(f'Error: you cannot have more than {settings.MAX_INPUT_CONTIGS} input contigs')
+    log(f'Input contigs:')
     contig_names = set()
-    for contig_name, seq in seqs:
+    for i, f in enumerate(filenames):
+        contig_type = get_sequence_file_type(f)
+        if contig_type != 'FASTA':
+            sys.exit(f'Error: input contig file ({f}) is not in FASTA format')
+        seqs = load_fasta(f)
+        if len(seqs) == 0:
+            sys.exit(f'Error: input contig file ({f}) contains no sequences')
+        if len(seqs) > 1:
+            sys.exit(f'Error: input contig file ({f}) contains multiple sequences')
+        contig_name = seqs[0][0]
         if contig_name in contig_names:
             sys.exit(f'Error: duplicate contig name: {contig_name}')
         contig_names.add(contig_name)
-        log(f'  {contig_name}: {len(seq):,} bp')
+        contig_len = len(seqs[0][1])
+        letter = string.ascii_uppercase[i]
+        log(f'  {letter}: {f} ({contig_name}: {contig_len:,} bp)')
     log()
+
+
+def get_contigs_from_cluster_dir(cluster_dir):
+    contig_dir = cluster_dir / '1_contigs'
+    if not contig_dir.is_dir():
+        sys.exit(f'Error: contig directory ({contig_dir}) does not exist')
+    return sorted(contig_dir.glob('*.fasta'))
 
 
 def check_cluster_directory(directory):
@@ -96,18 +115,6 @@ def check_cluster_directory(directory):
         sys.exit(f'Error: output directory ({directory}) already exists as a file')
     if not directory.is_dir():
         sys.exit(f'Error: output directory ({directory}) does not exist')
-
-    seq_file = directory / '2_all_seqs.fasta'
-    if not seq_file.is_file():
-        sys.exit(f'Error: output directory ({directory}) does not contain2_all_seqs.fasta')
-
-    pairwise_file = directory / '3_pairwise_alignments'
-    if not pairwise_file.is_file():
-        sys.exit(f'Error: output directory ({directory}) does not contain 3_pairwise_alignments')
-
-    reads_file = directory / '4_reads.fastq'
-    if not reads_file.is_file():
-        sys.exit(f'Error: output directory ({directory}) does not contain 4_reads.fastq')
 
 
 def check_required_software():
@@ -117,26 +124,6 @@ def check_required_software():
     # TODO
     # TODO
     # TODO
-
-
-def load_seqs(cluster_dir):
-    filename = cluster_dir / '2_all_seqs.fasta'
-    seqs = dict(load_fasta(filename))
-    seq_names = sorted(seqs.keys())
-    seq_lengths = {name: len(seq) for name, seq in seqs.items()}
-    return seqs, seq_names, seq_lengths
-
-
-def load_pairwise_alignments(cluster_dir, seq_names, seq_lengths):
-    filename = cluster_dir / '3_pairwise_alignments'
-    pairwise_cigars = {}
-    with open(filename, 'rt') as f:
-        for line in f:
-            parts = line.strip().split('\t')
-            assert len(parts) == 3
-            a, b, cigar = parts
-            pairwise_cigars[(a, b)] = cigar
-    return get_all_pairwise_coordinates(seq_names, pairwise_cigars, seq_lengths)
 
 
 def save_seqs_to_fasta(seqs, filename):
@@ -220,3 +207,14 @@ def log_proportion(counts):
         proportion = 100.0 * count / total
         proportions.append(f'{seq_name}: {proportion:.2f}%')
     log('\r  ' + ', '.join(proportions), end='    ')
+
+
+def save_pairwise_alignments(pairwise_alignments, filename):
+    log(f'Saving pairwise alignments to file: {filename}')
+    with open(filename, 'wt') as f:
+        for seq_names, cigar in pairwise_alignments.items():
+            a, b = seq_names
+            f.write(f'{a}\t{b}\t')
+            f.write(cigar)
+            f.write('\n')
+    log()

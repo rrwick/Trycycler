@@ -16,6 +16,7 @@ import argparse
 import pathlib
 import sys
 
+from .align import align
 from .cluster import cluster
 from .consensus import consensus
 from .help_formatter import MyParser, MyHelpFormatter
@@ -31,6 +32,9 @@ def main():
     if args.subparser_name == 'cluster':
         cluster(args)
 
+    elif args.subparser_name == 'align':
+        align(args)
+
     elif args.subparser_name == 'partition':
         partition(args)
 
@@ -44,6 +48,7 @@ def parse_args(args):
 
     subparsers = parser.add_subparsers(title='Commands', dest='subparser_name')
     cluster_subparser(subparsers)
+    align_subparser(subparsers)
     partition_subparser(subparsers)
     consensus_subparser(subparsers)
 
@@ -94,13 +99,42 @@ def cluster_subparser(subparsers):
                             help="Show program's version number and exit")
 
 
+def align_subparser(subparsers):
+    group = subparsers.add_parser('align', description='Check and align contig sequences',
+                                  formatter_class=MyHelpFormatter, add_help=False)
+
+    required_args = group.add_argument_group('Required arguments')
+    required_args.add_argument('-c', '--cluster_dir', type=pathlib.Path, required=True,
+                               help='Cluster directory (should contain a 1_contigs subdirectory)')
+    required_args.add_argument('-r', '--reads', type=str, required=True,
+                               help='Long reads (FASTQ format) used to generate the assemblies')
+
+    setting_args = group.add_argument_group('Settings')
+    setting_args.add_argument('--linear', action='store_true',
+                              help='The input contigs are not circular (default: assume the input '
+                                   'contigs are circular)')
+    setting_args.add_argument('--max_mash_dist', type=float, default=0.02,
+                              help='Maximum allowed pairwise Mash distance')
+    setting_args.add_argument('--max_length_diff', type=float, default=1.1,
+                              help='Maximum allowed pairwise relative length difference')
+    setting_args.add_argument('-t', '--threads', type=int, default=get_default_thread_count(),
+                              help='Number of threads to use for alignment')
+
+    other_args = group.add_argument_group('Other')
+    other_args.add_argument('-h', '--help', action='help', default=argparse.SUPPRESS,
+                            help='Show this help message and exit')
+    other_args.add_argument('--version', action='version', version='Trycycler v' + __version__,
+                            help="Show program's version number and exit")
+
+
 def partition_subparser(subparsers):
     group = subparsers.add_parser('partition', description='partition reads by cluster',
                                   formatter_class=MyHelpFormatter, add_help=False)
 
     required_args = group.add_argument_group('Required arguments')
     required_args.add_argument('-c', '--cluster_dirs', type=pathlib.Path, required=True, nargs='+',
-                               help='Cluster directories (each containing FASTA files)')
+                               help='Cluster directories (each should contain 2_all_seqs.fasta '
+                                    'and 3_pairwise_alignments files)')
     required_args.add_argument('-r', '--reads', type=str, required=True,
                                help='Long reads (FASTQ format) used to generate the assemblies')
 
@@ -120,28 +154,29 @@ def consensus_subparser(subparsers):
                                   formatter_class=MyHelpFormatter, add_help=False)
 
     required_args = group.add_argument_group('Required arguments')
-    required_args.add_argument('-c', '--contigs', type=str, required=True, nargs='+',
-                               help='Input contigs to be reconciled (multiple FASTA files '
-                                    'required with one contig per file)')
-    required_args.add_argument('-r', '--reads', type=str, required=True,
-                               help='Long reads (FASTQ format) used to generate the assemblies')
-    required_args.add_argument('-o', '--out_dir', type=pathlib.Path, required=True,
-                               help='Output directory')
+    required_args.add_argument('-c', '--cluster_dir', type=pathlib.Path, required=True,
+                               help='Cluster directory (should contain 2_all_seqs.fasta, '
+                                    '3_pairwise_alignments and 4_reads.fastq files)')
 
     setting_args = group.add_argument_group('Settings')
-    setting_args.add_argument('-t', '--threads', type=int, default=get_default_thread_count(),
-                              help='Number of threads to use for alignment')
     setting_args.add_argument('--linear', action='store_true',
                               help='The input contigs are not circular (default: assume the input '
                                    'contigs are circular)')
     setting_args.add_argument('--plot_qual', action='store_true',
                               help='Save plots of the per-base quality across the contigs')
+    setting_args.add_argument('-t', '--threads', type=int, default=get_default_thread_count(),
+                              help='Number of threads to use for alignment')
 
     other_args = group.add_argument_group('Other')
     other_args.add_argument('-h', '--help', action='help', default=argparse.SUPPRESS,
                             help='Show this help message and exit')
     other_args.add_argument('--version', action='version', version='Trycycler v' + __version__,
                             help="Show program's version number and exit")
+
+
+# TODO: parameter checking
+#       --max_length_diff should be >1 and <=2
+#       --max_mash_dist should be >0 and <=1
 
 
 if __name__ == '__main__':

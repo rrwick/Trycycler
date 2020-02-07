@@ -15,12 +15,7 @@ details. You should have received a copy of the GNU General Public License along
 If not, see <http://www.gnu.org/licenses/>.
 """
 
-import os
-import shutil
-import sys
-
 from setuptools import setup
-from setuptools.command.install import install
 
 
 def readme():
@@ -35,7 +30,7 @@ exec(open('trycycler/version.py').read())
 
 setup(name='Trycycler',
       version=__version__,
-      description='Trycycler: a tool for producing consensus contigs',
+      description='Trycycler: a tool for producing consensus assemblies',
       long_description=readme(),
       long_description_content_type='text/markdown',
       url='https://github.com/rrwick/Trycycler',
