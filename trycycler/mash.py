@@ -28,8 +28,8 @@ def get_mash_dist_matrix(seq_names, seqs, distance_threshold):
         pos_sketches, neg_sketches = make_mash_sketches(seq_names, seqs, temp_dir)
         mash_matrix = {}
         for a in seq_names:
-            padded_name = a.ljust(max_seq_name_len)
-            log(f'  {padded_name}: ', end='')
+            log('  ' + a, end=':')
+            log(' ' * (max_seq_name_len - len(a)), end=' ')
             for b in seq_names:
                 if a == b:
                     distance = 0.0

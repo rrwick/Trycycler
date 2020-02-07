@@ -56,12 +56,12 @@ def check_inputs_and_requirements(args):
 def load_contig_sequences(cluster_dir):
     filenames = get_contigs_from_cluster_dir(cluster_dir)
     contig_seqs, fasta_names = {}, {}
-    for i, f in enumerate(filenames):
-        letter = string.ascii_uppercase[i]
+    for f in filenames:
         seqs = load_fasta(f)
         assert len(seqs) == 1
-        contig_seqs[letter] = seqs[0][1]
-        fasta_names[letter] = f
+        name, seq = seqs[0]
+        contig_seqs[name] = seq
+        fasta_names[name] = f
     return contig_seqs, fasta_names
 
 
@@ -84,7 +84,7 @@ def check_input_contigs(cluster_dir):
         sys.exit(f'Error: you cannot have more than {settings.MAX_INPUT_CONTIGS} input contigs')
     log(f'Input contigs:')
     contig_names = set()
-    for i, f in enumerate(filenames):
+    for f in filenames:
         contig_type = get_sequence_file_type(f)
         if contig_type != 'FASTA':
             sys.exit(f'Error: input contig file ({f}) is not in FASTA format')
@@ -98,8 +98,7 @@ def check_input_contigs(cluster_dir):
             sys.exit(f'Error: duplicate contig name: {contig_name}')
         contig_names.add(contig_name)
         contig_len = len(seqs[0][1])
-        letter = string.ascii_uppercase[i]
-        log(f'  {letter}: {f} ({contig_name}: {contig_len:,} bp)')
+        log(f'  {f} ({contig_len:,} bp)')
     log()
 
 

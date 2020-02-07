@@ -47,7 +47,7 @@ def look_for_known_starting_seq(seqs, threads):
     data_path = pathlib.Path(pkg_resources.resource_filename(__name__, 'data'))
     starting_genes = str(data_path / 'starting_genes.fasta')
 
-    log('Looking for known starting sequences in each contig:', end='')
+    log('Looking for known starting sequences in each contig...', end='')
     per_seq_alignments = {}
     for name, seq in seqs.items():
         alignments = align_reads_to_seq(starting_genes, seq, threads)
@@ -56,7 +56,6 @@ def look_for_known_starting_seq(seqs, threads):
                       and a.query_cov >= settings.KNOWN_STARTING_SEQ_MIN_COVERAGE
                       and a.query_start == 0]
         per_seq_alignments[name] = alignments
-        log(f' {name}', end='')
     log('\n')
 
     all_found_starting_seq_names = set()
@@ -74,7 +73,7 @@ def look_for_known_starting_seq(seqs, threads):
             found_in_each.add(starting_seq_name)
 
     if len(found_in_each) == 0:
-        log('Unable to find a known starting sequence')
+        log('Unable to find a suitable known starting sequence')
         starting_seq = None
     else:
         # If more than one starting sequence was found, choose the one with the first name (which
@@ -98,7 +97,7 @@ def rotate_to_starting_seq(seqs, starting_seq):
                 'can be aligned to each other.')
     rotated_seqs = {}
     for seq_name, seq in seqs.items():
-        alignments = align_a_to_b(starting_seq, seq)
+        alignments = align_a_to_b(starting_seq, seq, preset='map-ont')
         alignments = [a for a in alignments
                       if a.percent_identity >= settings.KNOWN_STARTING_SEQ_MIN_IDENTITY
                       and a.query_cov >= settings.KNOWN_STARTING_SEQ_MIN_COVERAGE
@@ -165,7 +164,7 @@ def normalise_strands(seqs, starting_seq):
     strand_fixed_seqs = {}
     for seq_name, seq in seqs.items():
         log(f'  {seq_name}: ', end='')
-        alignments = align_a_to_b(starting_seq, seq)
+        alignments = align_a_to_b(starting_seq, seq, preset='map-ont')
         assert len(alignments) == 1
         strand = alignments[0].strand
         if strand == '+':

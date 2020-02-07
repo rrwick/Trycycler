@@ -39,10 +39,12 @@ def initial_sanity_check(seqs, max_mash_dist, max_length_diff):
 
 
 def get_length_ratio_matrix(seq_names, seqs, max_length_diff):
+    max_seq_name_len = max(len(x) for x in seq_names)
     min_threshold, max_threshold = get_length_thresholds(max_length_diff)
     length_matrix = {}
     for a in seq_names:
-        log(f'  {a}: ', end='')
+        log('  ' + a, end=':')
+        log(' ' * (max_seq_name_len - len(a)), end=' ')
         for b in seq_names:
             ratio = len(seqs[a]) / len(seqs[b])
             ratio_str = f'{ratio:.3f}'

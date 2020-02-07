@@ -68,7 +68,7 @@ class Alignment(object):
                ' (' + ('%.3f' % self.percent_identity) + '%)'
 
 
-def align_a_to_b(seq_a, seq_b):
+def align_a_to_b(seq_a, seq_b, preset='asm20'):
     with tempfile.TemporaryDirectory() as temp_dir:
         temp_dir = pathlib.Path(temp_dir)
         temp_a = temp_dir / 'a.fasta'
@@ -76,7 +76,7 @@ def align_a_to_b(seq_a, seq_b):
         write_seq_to_fasta(seq_a, 'A', temp_a)
         write_seq_to_fasta(seq_b, 'B', temp_b)
         with open(os.devnull, 'w') as dev_null:
-            out = subprocess.check_output(['minimap2', '--eqx', '-c', '-x', 'asm20',
+            out = subprocess.check_output(['minimap2', '--eqx', '-c', '-x', preset,
                                            str(temp_b), str(temp_a)], stderr=dev_null)
     out = out.decode()
     alignment_lines = out.splitlines()

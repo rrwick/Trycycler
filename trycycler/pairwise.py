@@ -25,7 +25,7 @@ def get_pairwise_alignments(seqs):
                 'sequences. This will allow it to \'jump\' from any sequence to the corresponding '
                 'position of any other sequence.')
     seq_names = list(seqs.keys())
-    # seq_lengths = {name: len(seqs[name]) for name in seq_names}
+    max_seq_name_len = max(len(x) for x in seq_names)
     pairwise_cigars = {}
     worst_identity = 100.0
     for i, a in enumerate(seq_names):
@@ -33,7 +33,9 @@ def get_pairwise_alignments(seqs):
         for j in range(i+1, len(seq_names)):
             b = seq_names[j]
             seq_b = seqs[b]
-            log(f'{a} vs {b}... ', end='')
+            log(' ' * (max_seq_name_len - len(a)) + a, end='')
+            log(' vs ', end='')
+            log(b + '...' + ' ' * (max_seq_name_len - len(b)), end=' ')
 
             result = edlib.align(seq_a, seq_b, mode="NW", task="path")
             cigar = result['cigar']
