@@ -117,6 +117,8 @@ def align_subparser(subparsers):
                               help='Maximum allowed pairwise Mash distance')
     setting_args.add_argument('--max_length_diff', type=float, default=1.1,
                               help='Maximum allowed pairwise relative length difference')
+    setting_args.add_argument('--min_identity', type=float, default=99.0,
+                              help='Minimum allowed pairwise percent identity')
     setting_args.add_argument('-t', '--threads', type=int, default=get_default_thread_count(),
                               help='Number of threads to use for alignment')
 

@@ -41,6 +41,10 @@ def test_get_pairwise_alignments_1():
     a = 'TGGTGTTACACTGCGGGCGAACCGTTCTGATACGTTCTTTTCATTGGTAC'
     b = 'TGGTGTTACACTGCGGGCGAACCTTCTGATACGTTCTTTTCATTGGTAC'
     seqs = {'A': a, 'B': b}
-    pairwise_coordinates = trycycler.pairwise.get_pairwise_alignments(seqs)
+    seq_names = sorted(seqs.keys())
+    seq_lengths = {name: len(seq) for name, seq in seqs.items()}
+    pairwise_cigars, _ = trycycler.pairwise.get_pairwise_alignments(seqs)
+    pairwise_coordinates = \
+        trycycler.pairwise.get_all_pairwise_coordinates(seq_names, pairwise_cigars, seq_lengths)
     assert pairwise_coordinates[('A', 'B')] == list(range(0, 23)) + [None] + list(range(23, 49))
     assert pairwise_coordinates[('B', 'A')] == list(range(0, 23)) + list(range(24, 50))

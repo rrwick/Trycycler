@@ -49,7 +49,6 @@ def check_input_reads(filename):
     log()
 
 
-
 def check_input_clusters(cluster_dirs):
     if len(cluster_dirs) < 1:
         sys.exit('Error: one or more input cluster directories are required')

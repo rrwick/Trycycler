@@ -32,7 +32,7 @@ def cluster(args):
     check_inputs_and_requirements(args)
     seqs, fasta_names = load_assembly_sequences(args.assemblies)
     seq_names = list(seqs.keys())
-    matrix = distance_matrix(seqs, seq_names, args.distance, args.out_dir)
+    matrix = distance_matrix(seqs, seq_names, args.distance)
     cluster_numbers = complete_linkage(seqs, matrix, args.distance, args.out_dir)
     build_tree(seq_names, seqs, matrix, args.out_dir, cluster_numbers)
 
@@ -104,7 +104,7 @@ def load_assembly_sequences(filenames):
     return assembly_seqs, fasta_names
 
 
-def distance_matrix(seqs, seq_names, distance, out_dir):
+def distance_matrix(seqs, seq_names, distance):
     section_header('Distance matrix')
     explanation('Mash is used to build a distance matrix of all contigs in the assemblies.')
     mash_matrix = get_mash_dist_matrix(seq_names, seqs, distance)
@@ -180,7 +180,7 @@ def complete_linkage(seqs, distances, threshold, out_dir):
     # Sort clusters based on the sum of their sequence lengths. This makes cluster with longer
     # sequences (e.g. chromosomes) and more representative sequences come earlier in the list.
     cluster_names = sorted(clusters.keys(), reverse=True,
-                           key=lambda x: sum(len(s[1]) for s in clusters[x]))
+                           key=lambda c: sum(len(s[1]) for s in clusters[c]))
 
     cluster_numbers = {}
     for i, cluster_name in enumerate(cluster_names):

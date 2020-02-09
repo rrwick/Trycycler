@@ -156,10 +156,14 @@ def test_get_consensus_seq_9():
     seqs = {'A': 'GTGTACCCCGCCACCTCGCCCGTGGCTGACCCTCCTACATAGCCCACGTTCTCTAAGGGAAGTGTGAATG',
             'B': 'GTGTACCCCGCCACCACGCCCGTGGCTGACCCTCGTACATAGCCCACGTTCTCTAAGGGAAGTGTGAATG',
             'C': 'GTGTACCCCGCCACCACGCCCGTGGCTGACCCTCCTACATAGCCCACGTTCTCTCAGGGAAGTGTGAATG'}
+    seq_names = sorted(seqs.keys())
+    seq_lengths = {name: len(seq) for name, seq in seqs.items()}
     per_base_scores = {'A': [9]*10 + [1]*10 + [9]*50,
                        'B': [9]*30 + [1]*10 + [9]*30,
                        'C': [9]*50 + [1]*10 + [9]*10}
-    pairwise_alignments = trycycler.pairwise.get_pairwise_alignments(seqs)
-    consensus = trycycler.consensus.get_consensus_seq(seqs, per_base_scores, pairwise_alignments)
+    pairwise_cigars, _ = trycycler.pairwise.get_pairwise_alignments(seqs)
+    pairwise_coordinates = \
+        trycycler.pairwise.get_all_pairwise_coordinates(seq_names, pairwise_cigars, seq_lengths)
+    consensus = trycycler.consensus.get_consensus_seq(seqs, per_base_scores, pairwise_coordinates)
     assert consensus == 'GTGTACCCCGCCACCACGCCCGTGGCTGACCCTCCTACATAGCCCACGTTCTCTAAGGGAAGTGTGAATG'
 

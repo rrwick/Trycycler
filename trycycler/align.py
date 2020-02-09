@@ -12,12 +12,11 @@ If not, see <http://www.gnu.org/licenses/>.
 """
 
 import random
-import string
 import sys
 
 from .circularisation import circularise
 from .initial_check import initial_sanity_check
-from .log import log, section_header, explanation
+from .log import log, section_header, explanation, dim, red
 from .misc import get_sequence_file_type, load_fasta, get_fastq_stats
 from .pairwise import get_pairwise_alignments
 from .starting_seq import get_starting_seq, rotate_to_starting_seq
@@ -36,8 +35,9 @@ def align(args):
         seqs = circularise(seqs, args.reads, args.threads)
         seqs = rotate_to_starting_seq(seqs, starting_seq)
     save_seqs_to_fasta(seqs, args.cluster_dir / '2_all_seqs.fasta')
-    pairwise_alignments = get_pairwise_alignments(seqs)
-    save_pairwise_alignments(pairwise_alignments, args.cluster_dir / '3_pairwise_alignments')
+    pairwise_cigars, percent_identities = get_pairwise_alignments(seqs)
+    print_identity_matrix(seqs, percent_identities, args.min_identity)
+    save_pairwise_cigars(pairwise_cigars, args.cluster_dir / '3_pairwise_alignments')
 
 
 def welcome_message():
@@ -208,12 +208,42 @@ def log_proportion(counts):
     log('\r  ' + ', '.join(proportions), end='    ')
 
 
-def save_pairwise_alignments(pairwise_alignments, filename):
+def save_pairwise_cigars(pairwise_cigars, filename):
     log(f'Saving pairwise alignments to file: {filename}')
     with open(filename, 'wt') as f:
-        for seq_names, cigar in pairwise_alignments.items():
+        for seq_names, cigar in pairwise_cigars.items():
             a, b = seq_names
             f.write(f'{a}\t{b}\t')
             f.write(cigar)
             f.write('\n')
     log()
+
+
+def print_identity_matrix(seqs, percent_identities, min_allowed_identity):
+    seq_names = sorted(seqs.keys())
+    max_seq_name_len = max(len(x) for x in seq_names)
+    failed = False
+    for a in seq_names:
+        log('  ' + a, end=':')
+        log(' ' * (max_seq_name_len - len(a)), end=' ')
+        for b in seq_names:
+            if a == b:
+                identity = 100.0
+            else:
+                identity = percent_identities[(a, b)]
+            identity_str = f'{identity:.2f}%'.rjust(7)
+            if a == b:
+                log(dim(identity_str), end='')
+            elif identity < min_allowed_identity:
+                log(red(identity_str), end='')
+                failed = True
+            else:
+                log(identity_str, end='')
+            if b != seq_names[-1]:  # if not the last one in the row
+                log('  ', end='')
+        log()
+    log()
+    if failed:
+        sys.exit(f'Error: some pairwise identities are below the minimum allowed value '
+                 f'({min_allowed_identity}%). Please remove offending '
+                 f'sequences or lower the threshold and try again.')

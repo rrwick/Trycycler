@@ -13,10 +13,8 @@ If not, see <http://www.gnu.org/licenses/>.
 
 import edlib
 import re
-import sys
 
 from .log import log, section_header, explanation
-from . import settings
 
 
 def get_pairwise_alignments(seqs):
@@ -26,8 +24,8 @@ def get_pairwise_alignments(seqs):
                 'position of any other sequence.')
     seq_names = list(seqs.keys())
     max_seq_name_len = max(len(x) for x in seq_names)
-    pairwise_cigars = {}
-    worst_identity = 100.0
+    pairwise_cigars, percent_identities = {}, {}
+
     for i, a in enumerate(seq_names):
         seq_a = seqs[a]
         for j in range(i+1, len(seq_names)):
@@ -41,16 +39,13 @@ def get_pairwise_alignments(seqs):
             cigar = result['cigar']
             percent_identity, max_indel = identity_and_max_indel_from_cigar(cigar)
             log(f'{percent_identity:.2f}% identity, max indel = {max_indel}')
-            worst_identity = min(percent_identity, worst_identity)
+
             pairwise_cigars[(a, b)] = cigar
+            percent_identities[(a, b)] = percent_identity
+            percent_identities[(b, a)] = percent_identity
     log()
 
-    if worst_identity < settings.MIN_ALLOWED_PAIRWISE_IDENTITY:
-        sys.exit(f'Error: some pairwise identities are below the minimum allowed'
-                 f'({settings.MIN_ALLOWED_PAIRWISE_IDENTITY}%). Please remove offending '
-                 f'sequences and try again.')
-
-    return pairwise_cigars
+    return pairwise_cigars, percent_identities
 
 
 def get_all_pairwise_coordinates(seq_names, pairwise_cigars, seq_lengths):
