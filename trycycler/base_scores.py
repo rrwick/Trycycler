@@ -14,13 +14,11 @@ If not, see <http://www.gnu.org/licenses/>.
 import matplotlib
 import matplotlib.pyplot as plt
 import multiprocessing
-import numpy as np
 import re
 
 from .alignment import align_reads_to_seq
 from .log import log, section_header, explanation
 from .misc import means_of_slices
-from . import settings
 
 
 def get_per_base_scores(seqs, cluster_dir, circular, threads, plot_qual,
@@ -97,17 +95,12 @@ def get_one_seq_per_base_scores(seq, reads, circular, threads):
 
 def get_alignment_scores(a):
     expanded_cigar = get_expanded_cigar(a)
-    pass_fail = get_pass_fail(expanded_cigar)
-
-    # We need to index into these, which is a bit faster for a Python list than for a Numpy array.
-    expanded_cigar = expanded_cigar.tolist()
-    pass_fail = pass_fail.tolist()
 
     # We now make the score for each position of the expanded CIGAR. The score increases with
     # matches and resets to zero at fail regions. This is done in both forward and reverse
     # directions.
-    forward_scores = get_cigar_scores_forward(expanded_cigar, pass_fail)
-    reverse_scores = get_cigar_scores_reverse(expanded_cigar, pass_fail)
+    forward_scores = get_cigar_scores(expanded_cigar, forward=True)
+    reverse_scores = get_cigar_scores(expanded_cigar, forward=False)
 
     # To make the final scores, we combine the forward and reverse scores, taking the minimum of
     # each. We also drop any insertion positions, so the scores match up with the corresponding
@@ -142,53 +135,36 @@ def get_expanded_cigar(a):
             i += 1
     assert i == expanded_cigar_size
 
-    return np.asarray(expanded_cigar, dtype=int)
+    return expanded_cigar
 
 
-def get_pass_fail(expanded_cigar):
-    # The simplified expanded CIGAR has only two values: 0 for match, 1 for everything else.
-    simplified_expanded_cigar = np.copy(expanded_cigar)
-    simplified_expanded_cigar[simplified_expanded_cigar > 1] = 1
-
-    # We then sum the values over a sliding window.
-    pass_fail = np.convolve(simplified_expanded_cigar,
-                            np.ones(settings.BASE_SCORE_WINDOW, dtype=int), 'same')
-
-    # And then simplify this to a pass/fail array with two values: 0 for pass, 1 for fail.
-    pass_fail[pass_fail < settings.BASE_SCORE_THRESHOLD] = 0
-    pass_fail[pass_fail >= settings.BASE_SCORE_THRESHOLD] = 1
-
-    return pass_fail
-
-
-def get_cigar_scores_forward(expanded_cigar, pass_fail):
+def get_cigar_scores(expanded_cigar, forward=True):
     scores = [0] * len(expanded_cigar)
-    score = 0
-    for i in range(len(expanded_cigar)):
-        if pass_fail[i] == 1:  # fail
-            score = 0
-        elif expanded_cigar[i] == 0:  # match
+    score, indel_run = 0, 0
+    if forward:
+        iterator = range(len(expanded_cigar))
+    else:
+        iterator = range(len(expanded_cigar) - 1, -1, -1)
+
+    for i in iterator:
+
+        # Matches increase the score.
+        if expanded_cigar[i] == 0:
             score += 1
-        else:  # anything other than a match
-            score -= 1
+            indel_run = 0
+
+        # Mismatches don't change the score.
+        elif expanded_cigar[i] == 1:
+            indel_run = 0
+
+        # Insertions/deletions reduce the score by a factor which increases with the length of
+        # the indel: 1 bp = 20%, 2 bp = 40%, 3 bp = 60%, 4 bp = 80%, 5 bp = 100%
+        else:  # insertion or deletion
+            indel_run += 1
+            score = score * (5 - indel_run) // 5
             if score < 0:
                 score = 0
-        scores[i] = score
-    return scores
 
-
-def get_cigar_scores_reverse(expanded_cigar, pass_fail):
-    scores = [0] * len(expanded_cigar)
-    score = 0
-    for i in range(len(expanded_cigar) - 1, -1, -1):  # loop through indices backwards
-        if pass_fail[i] == 1:  # fail
-            score = 0
-        elif expanded_cigar[i] == 0:  # match
-            score += 1
-        else:  # anything other than a match
-            score -= 1
-            if score < 0:
-                score = 0
         scores[i] = score
     return scores
 
