@@ -160,6 +160,7 @@ def get_consensus_seq(seqs, per_base_scores, pairwise_alignments):
     current_seq_name = choose_starting_sequence(seqs, per_base_scores)
     current_seq = seqs[current_seq_name]
     current_pos = 0
+    double_longest = 2 * max(len(seq) for seq in seqs.values())
 
     consensus_seq = []
     counts = {n: 0 for n in seq_names}
@@ -187,6 +188,9 @@ def get_consensus_seq(seqs, per_base_scores, pairwise_alignments):
         current_pos += 1
         if current_pos >= len(current_seq):
             break
+        if len(consensus_seq) > double_longest:
+            sys.exit('\nError: consensus sequence has grown too long - there is a cycle in the '
+                     'pairwise alignments')
 
     log_proportion(counts)
     log('\n')
