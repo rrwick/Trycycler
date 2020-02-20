@@ -15,6 +15,7 @@ import collections
 import sys
 
 from .alignment import align_reads_to_seq
+from .intrange import IntRange
 from .log import log, section_header, explanation
 from .misc import get_sequence_file_type, load_fasta, iterate_fastq, get_fastq_stats
 
@@ -22,6 +23,9 @@ from .misc import get_sequence_file_type, load_fasta, iterate_fastq, get_fastq_s
 def partition(args):
     welcome_message()
     check_inputs_and_requirements(args)
+    best_clusters = align_reads(args.cluster_dirs, args.reads, args.threads, args.min_aligned_len,
+                                args.min_read_cov)
+    save_reads_per_cluster(args.cluster_dirs, args.reads, best_clusters)
 
 
 def welcome_message():
@@ -34,8 +38,6 @@ def check_inputs_and_requirements(args):
     check_input_reads(args.reads)
     check_input_clusters(args.cluster_dirs)
     check_required_software()
-    best_clusters = align_reads(args.cluster_dirs, args.reads, args.threads)
-    save_reads_per_cluster(args.cluster_dirs, args.reads, best_clusters)
 
 
 def check_input_reads(filename):
@@ -80,7 +82,7 @@ def check_required_software():
     # TODO
 
 
-def align_reads(cluster_dirs, reads, threads):
+def align_reads(cluster_dirs, reads, threads, min_aligned_len, min_read_cov):
     section_header('Aligning reads to each contig')
     explanation('The reads are independently aligned to each of the contigs and Trycycler will '
                 'remember the single best alignment for each read.')
@@ -98,13 +100,33 @@ def align_reads(cluster_dirs, reads, threads):
 
                 # Toss out alignments entirely in the second half of the doubled sequence.
                 alignments = [a for a in alignments if a.ref_start < seq_len]
-
                 log(f'{len(alignments):,} alignments')
+
+                # Group alignments by read name.
+                alignments_by_read = collections.defaultdict(list)
                 for a in alignments:
-                    read_name = a.query_name
-                    if a.matching_bases > best_matching_bases[read_name]:
-                        best_clusters[read_name] = d
-                        best_matching_bases[read_name] = a.matching_bases
+                    alignments_by_read[a.query_name].append(a)
+
+                # Only consider reads for which enough sequence aligned and a large enough fraction
+                # of the read aligned. Note that it's okay for this to come in multiple alignments,
+                # so a read which glitches out in the middle can still pass.
+                for read_name, read_alignments in alignments_by_read.items():
+                    range = IntRange()
+                    read_length = None
+                    for a in read_alignments:
+                        read_length = a.query_length
+                        range.add_range(a.query_start, a.query_end)
+                    if range.total_length() < min_aligned_len:
+                        continue
+                    read_coverage = 100.0 * range.total_length() / read_length
+                    if read_coverage < min_read_cov:
+                        continue
+
+                    # If the read passed the checks, then we remember its best single alignment.
+                    for a in alignments:
+                        if a.matching_bases > best_matching_bases[read_name]:
+                            best_clusters[read_name] = d
+                            best_matching_bases[read_name] = a.matching_bases
     log()
 
     return best_clusters

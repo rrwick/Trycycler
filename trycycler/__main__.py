@@ -141,6 +141,11 @@ def partition_subparser(subparsers):
                                help='Long reads (FASTQ format) used to generate the assemblies')
 
     setting_args = group.add_argument_group('Settings')
+    setting_args.add_argument('--min_aligned_len', type=int, default=1000,
+                              help='Do not consider reads with less than this many bases aligned')
+    setting_args.add_argument('--min_read_cov', type=int, default=90.0,
+                              help='Do not consider reads with less than this percentages of '
+                                   'their length covered by alignments')
     setting_args.add_argument('-t', '--threads', type=int, default=get_default_thread_count(),
                               help='Number of threads to use for alignment')
 
