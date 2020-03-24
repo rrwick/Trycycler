@@ -22,6 +22,7 @@ from .consensus import consensus
 from .help_formatter import MyParser, MyHelpFormatter
 from .log import bold
 from .misc import get_default_thread_count, check_python_version
+from .msa import msa
 from .partition import partition
 from .version import __version__
 
@@ -34,6 +35,9 @@ def main():
 
     elif args.subparser_name == 'align':
         align(args)
+
+    elif args.subparser_name == 'msa':
+        msa(args)
 
     elif args.subparser_name == 'partition':
         partition(args)
@@ -49,6 +53,7 @@ def parse_args(args):
     subparsers = parser.add_subparsers(title='Commands', dest='subparser_name')
     cluster_subparser(subparsers)
     align_subparser(subparsers)
+    msa_subparser(subparsers)
     partition_subparser(subparsers)
     consensus_subparser(subparsers)
 
@@ -121,6 +126,31 @@ def align_subparser(subparsers):
                               help='Minimum allowed pairwise percent identity')
     setting_args.add_argument('-t', '--threads', type=int, default=get_default_thread_count(),
                               help='Number of threads to use for alignment')
+
+    other_args = group.add_argument_group('Other')
+    other_args.add_argument('-h', '--help', action='help', default=argparse.SUPPRESS,
+                            help='Show this help message and exit')
+    other_args.add_argument('--version', action='version', version='Trycycler v' + __version__,
+                            help="Show program's version number and exit")
+
+
+def msa_subparser(subparsers):
+    group = subparsers.add_parser('msa', description='Multiple sequence alignment',
+                                  formatter_class=MyHelpFormatter, add_help=False)
+
+    required_args = group.add_argument_group('Required arguments')
+    required_args.add_argument('-c', '--cluster_dir', type=pathlib.Path, required=True,
+                               help='Cluster directory (should contain a 1_contigs subdirectory)')
+
+    setting_args = group.add_argument_group('Settings')
+    setting_args.add_argument('-k', '--kmer', type=int, default=32,
+                              help='K-mer size used for sequence partitioning')
+    setting_args.add_argument('-s', '--step', type=int, default=1000,
+                              help='Step size used for sequence partitioning')
+    setting_args.add_argument('-l', '--lookahead', type=int, default=10000,
+                              help='Look-ahead margin used for sequence partitioning')
+    setting_args.add_argument('-t', '--threads', type=int, default=get_default_thread_count(),
+                              help='Number of threads to use for multiple sequence alignment')
 
     other_args = group.add_argument_group('Other')
     other_args.add_argument('-h', '--help', action='help', default=argparse.SUPPRESS,

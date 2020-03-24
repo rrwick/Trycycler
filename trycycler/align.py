@@ -37,7 +37,6 @@ def align(args):
     save_seqs_to_fasta(seqs, args.cluster_dir / '2_all_seqs.fasta')
     pairwise_cigars, percent_identities = get_pairwise_alignments(seqs)
     print_identity_matrix(seqs, percent_identities, args.min_identity)
-    save_pairwise_cigars(pairwise_cigars, args.cluster_dir / '3_pairwise_alignments')
 
 
 def welcome_message():

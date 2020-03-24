@@ -214,3 +214,16 @@ def check_output_directory(directory):
         log(f'Creating output directory: {directory}')
         directory.mkdir(parents=True)
     log()
+
+
+def count_substrings(s, substring):
+    """
+    https://stackoverflow.com/questions/11476713
+    """
+    string_size = len(s)
+    substring_size = len(substring)
+    count = 0
+    for i in range(0,string_size-substring_size+1):
+        if s[i:i+substring_size] == substring:
+            count+=1
+    return count
