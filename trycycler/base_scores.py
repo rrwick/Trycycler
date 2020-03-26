@@ -44,6 +44,7 @@ def get_per_base_scores(seqs, cluster_dir, circular, threads, plot_qual,
             plot_max = plot_per_base_scores(seq_name, scores, cluster_dir, plot_max, total,
                                             averaging_window=averaging_window)
         log()
+
     return per_base_scores, plot_max
 
 
@@ -225,3 +226,68 @@ def plot_per_base_scores(seq_name, per_base_scores, out_dir, plot_max, total,
     plt.savefig(str(plot_filename))
 
     return plot_max
+
+
+def add_indels_to_per_base_scores(msa_seqs, per_base_scores):
+    """
+    This function takes the per-base scores as input and outputs a similar set of per-base scores,
+    but this time with the MSA indels included. All output per-base score lists will therefore be
+    the same length.
+
+    For example:
+      seq:    ACGACTAGCTACACG  ->  ACGACT--AGCTAC-ACG
+      scores: 356289238951365  ->  356289222389511365
+    """
+    msa_per_base_scores = {}
+    for seq_name, msa_seq in msa_seqs.items():
+
+        # First we make the scores for the sequence using None as a placeholder for the indels.
+        i = 0
+        scores = []
+        for base in msa_seq:
+            if base == '-':
+                scores.append(None)
+            else:
+                scores.append(per_base_scores[seq_name][i])
+                i += 1
+
+        # Sanity checks.
+        assert i == len(per_base_scores[seq_name])
+        assert len(scores) == len(msa_seq)
+
+        # Then we replace the Nones with the lowest of the neighbouring scores.
+        forward_scores, reverse_scores, final_scores = [], [], []
+        current_score = None
+        for i, score in enumerate(scores):
+            if score is not None:
+                current_score = score
+            forward_scores.append(current_score)
+        current_score = None
+        for i in range(len(scores) - 1, -1, -1):
+            score = scores[i]
+            if score is not None:
+                current_score = score
+            reverse_scores.append(current_score)
+        reverse_scores = reverse_scores[::-1]
+        assert len(forward_scores) == len(reverse_scores)
+        for i in range(len(scores)):
+            forward_score, reverse_score = forward_scores[i], reverse_scores[i]
+            assert forward_score is not None or reverse_score is not None
+            if forward_score is None:
+                final_scores.append(reverse_score)
+            elif reverse_score is None:
+                final_scores.append(forward_score)
+            else:  # neither are None
+                if msa_seq[i] == '-':
+                    if forward_score < reverse_score:
+                        final_scores.append(forward_score)
+                    else:
+                        final_scores.append(reverse_score)
+                else:
+                    assert forward_score == reverse_score
+                    final_scores.append(forward_score)
+        assert len(forward_scores) == len(final_scores)
+
+        msa_per_base_scores[seq_name] = final_scores
+
+    return msa_per_base_scores

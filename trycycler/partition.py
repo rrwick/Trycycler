@@ -89,7 +89,7 @@ def align_reads(cluster_dirs, reads, threads, min_aligned_len, min_read_cov):
     best_clusters = {}
     best_matching_bases = collections.defaultdict(int)
     for d in cluster_dirs:
-        contigs = sorted(d.glob("*.fasta"))
+        contigs = sorted(d.glob('2_all_seqs.fasta'))
         for f in contigs:
             seqs = load_fasta(f)
             for name, seq in seqs:

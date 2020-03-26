@@ -15,36 +15,3 @@ If not, see <http://www.gnu.org/licenses/>.
 """
 
 import trycycler.pairwise
-
-
-def test_get_pairwise_coordinates_1():
-    """
-    A: ACTGACTA--CTA
-    B: ACCG--TACGCTA
-       ==X=II==DD===
-    """
-    cigar = '2=1X1=2I2=2D3='
-    seq_lengths = {'A': 11, 'B': 11}
-    a_to_b, b_to_a = trycycler.pairwise.get_pairwise_coordinates('A', 'B', cigar, seq_lengths)
-
-    assert a_to_b == [0, 1, 2, 3, None, None, 4, 5, 8, 9, 10]
-    assert b_to_a == [0, 1, 2, 3, 6, 7, None, None, 8, 9, 10]
-
-
-def test_get_pairwise_alignments_1():
-    """
-    A: TGGTGTTACACTGCGGGCGAACCGTTCTGATACGTTCTTTTCATTGGTAC
-    B: TGGTGTTACACTGCGGGCGAACC-TTCTGATACGTTCTTTTCATTGGTAC
-       =======================I==========================
-       23=1I26=
-    """
-    a = 'TGGTGTTACACTGCGGGCGAACCGTTCTGATACGTTCTTTTCATTGGTAC'
-    b = 'TGGTGTTACACTGCGGGCGAACCTTCTGATACGTTCTTTTCATTGGTAC'
-    seqs = {'A': a, 'B': b}
-    seq_names = sorted(seqs.keys())
-    seq_lengths = {name: len(seq) for name, seq in seqs.items()}
-    pairwise_cigars, _ = trycycler.pairwise.get_pairwise_alignments(seqs)
-    pairwise_coordinates = \
-        trycycler.pairwise.get_all_pairwise_coordinates(seq_names, pairwise_cigars, seq_lengths)
-    assert pairwise_coordinates[('A', 'B')] == list(range(0, 23)) + [None] + list(range(23, 49))
-    assert pairwise_coordinates[('B', 'A')] == list(range(0, 23)) + list(range(24, 50))

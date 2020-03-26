@@ -54,13 +54,6 @@ class Alignment(object):
             if part.startswith('AS:i:'):
                 self.alignment_score = int(part[5:])
 
-    def get_ref_depth_contribution(self):
-        """
-        Returns how much depth this alignment contributes to the reference (0.0 to 1.0, on the low
-        side of that range if the alignment only covers a small part of the reference.
-        """
-        return (self.ref_end - self.ref_start) / self.ref_length
-
     def __repr__(self):
         return self.query_name + ':' + str(self.query_start) + '-' + str(self.query_end) + \
                '(' + self.strand + '), ' + \

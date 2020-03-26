@@ -14,23 +14,25 @@ If not, see <http://www.gnu.org/licenses/>.
 import string
 import sys
 
-from .base_scores import get_per_base_scores
+from .base_scores import get_per_base_scores, add_indels_to_per_base_scores
 from .log import log, section_header, explanation
 from .misc import get_sequence_file_type, load_fasta, get_fastq_stats
-from .pairwise import get_all_pairwise_coordinates
 
 
 def consensus(args):
     welcome_message()
     check_inputs_and_requirements(args)
+
     seqs, seq_names, seq_lengths = load_seqs(args.cluster_dir)
-    cluster_name = args.cluster_dir.name
-    pairwise_alignments = load_pairwise_alignments(args.cluster_dir, seq_names, seq_lengths)
+    msa_seqs, msa_names, msa_lengths = load_msa(args.cluster_dir)
+    sanity_check_msa(seqs, seq_names, seq_lengths, msa_seqs, msa_names, msa_lengths)
+
     circular = not args.linear
-    per_base_scores, plot_max = get_per_base_scores(seqs, args.cluster_dir, circular, args.threads,
-                                                    args.plot_qual)
-    consensus_seq = get_consensus_seq(seqs, per_base_scores, pairwise_alignments)
-    save_seqs_to_fasta({cluster_name + '_consensus': consensus_seq},
+    per_base_scores, plot_max = get_per_base_scores(seqs, args.cluster_dir, circular,
+                                                    args.threads, args.plot_qual)
+    per_base_scores = add_indels_to_per_base_scores(msa_seqs, per_base_scores)
+    consensus_seq = get_consensus_seq(msa_seqs, per_base_scores)
+    save_seqs_to_fasta({args.cluster_dir.name + '_consensus': consensus_seq},
                        args.cluster_dir / '5_consensus.fasta')
     get_per_base_scores({'consensus': consensus_seq}, args.cluster_dir, circular, args.threads,
                         args.plot_qual, plot_max, consensus=True)
@@ -101,9 +103,9 @@ def check_cluster_directory(directory):
     if not seq_file.is_file():
         sys.exit(f'Error: output directory ({directory}) does not contain2_all_seqs.fasta')
 
-    pairwise_file = directory / '3_pairwise_alignments'
+    pairwise_file = directory / '3_msa.fasta'
     if not pairwise_file.is_file():
-        sys.exit(f'Error: output directory ({directory}) does not contain 3_pairwise_alignments')
+        sys.exit(f'Error: output directory ({directory}) does not contain 3_msa.fasta')
 
     reads_file = directory / '4_reads.fastq'
     if not reads_file.is_file():
@@ -127,16 +129,21 @@ def load_seqs(cluster_dir):
     return seqs, seq_names, seq_lengths
 
 
-def load_pairwise_alignments(cluster_dir, seq_names, seq_lengths):
-    filename = cluster_dir / '3_pairwise_alignments'
-    pairwise_cigars = {}
-    with open(filename, 'rt') as f:
-        for line in f:
-            parts = line.strip().split('\t')
-            assert len(parts) == 3
-            a, b, cigar = parts
-            pairwise_cigars[(a, b)] = cigar
-    return get_all_pairwise_coordinates(seq_names, pairwise_cigars, seq_lengths)
+def load_msa(cluster_dir):
+    filename = cluster_dir / '3_msa.fasta'
+    seqs = dict(load_fasta(filename))
+    seq_names = sorted(seqs.keys())
+    seq_lengths = {name: len(seq) for name, seq in seqs.items()}
+    return seqs, seq_names, seq_lengths
+
+
+def sanity_check_msa(seqs, seq_names, seq_lengths, msa_seqs, msa_names, msa_lengths):
+    assert seq_names == msa_names
+    msa_length = msa_lengths[seq_names[0]]
+    for n in seq_names:
+        assert msa_lengths[n] == msa_length
+        assert seq_lengths[n] <= msa_lengths[n]
+        assert seqs[n] == msa_seqs[n].replace('-', '')
 
 
 def save_seqs_to_fasta(seqs, filename):
@@ -149,72 +156,42 @@ def save_seqs_to_fasta(seqs, filename):
     log()
 
 
-def get_consensus_seq(seqs, per_base_scores, pairwise_alignments):
+def get_consensus_seq(msa_seqs, per_base_scores):
     section_header('Consensus sequence')
     explanation('Trycycler now builds the consensus sequence by switching between contigs '
                 'to stay on whichever has the highest local score.')
 
-    seq_names = list(seqs.keys())
-    other_seq_names = get_other_seq_names(seq_names)
+    seq_names = list(msa_seqs.keys())
+    msa_length = len(msa_seqs[seq_names[0]])
 
-    current_seq_name = choose_starting_sequence(seqs, per_base_scores)
-    current_seq = seqs[current_seq_name]
-    current_pos = 0
-    double_longest = 2 * max(len(seq) for seq in seqs.values())
+    # Sanity check!
+    for n in seq_names:
+        assert len(msa_seqs[n]) == msa_length == len(per_base_scores[n])
 
+    counts = {n: 0 for n in seq_names}  # number of bases from each sequence in the consensus
     consensus_seq = []
-    counts = {n: 0 for n in seq_names}
-    log('Consensus sequence composition:')
-    while True:
-        current_score = per_base_scores[current_seq_name][current_pos]
-        best_other_score, best_other_seq_name, best_other_pos = 0, None, None
-        for other_seq_name in other_seq_names[current_seq_name]:
-            pairwise = pairwise_alignments[(current_seq_name, other_seq_name)]
-            other_pos = pairwise[current_pos]
-            if other_pos is not None:
-                other_score = per_base_scores[other_seq_name][other_pos]
-                if other_score > best_other_score:
-                    best_other_score = other_score
-                    best_other_seq_name = other_seq_name
-                    best_other_pos = other_pos
-        if best_other_score > current_score:
-            current_seq_name = best_other_seq_name
-            current_seq = seqs[current_seq_name]
-            current_pos = best_other_pos
-            log_proportion(counts)
-        consensus_seq.append(current_seq[current_pos])
-        counts[current_seq_name] += 1
 
-        current_pos += 1
-        if current_pos >= len(current_seq):
-            break
-        if len(consensus_seq) > double_longest:
-            sys.exit('\nError: consensus sequence has grown too long - there is a cycle in the '
-                     'pairwise alignments')
+    log('Consensus sequence composition:')
+    for i in range(msa_length):
+        best_seq_name, best_score = None, None
+        for n in seq_names:
+            s = per_base_scores[n][i]
+            if best_score is None or s > best_score:
+                best_seq_name, best_score = n, s
+        assert best_seq_name is not None
+        best_base = msa_seqs[best_seq_name][i]
+        if best_base != '-':
+            consensus_seq.append(best_base)
+            counts[best_seq_name] += 1
+            log_proportion(counts)
+
+    # Sanity check: each base in the consensus sequence should contribute to the counts.
+    assert sum(counts.values()) == len(consensus_seq)
 
     log_proportion(counts)
     log('\n')
+    log(f'Consensus sequence length: {len(consensus_seq):,} bp')
     return ''.join(consensus_seq)
-
-
-def choose_starting_sequence(seqs, per_base_scores):
-    best_seq_name, best_score = None, 0
-    for seq_name in seqs.keys():
-        starting_score = per_base_scores[seq_name][0]
-        if best_seq_name is None or starting_score > best_score:
-            best_seq_name = seq_name
-            best_score = starting_score
-    return best_seq_name
-
-
-def get_other_seq_names(seq_names):
-    """
-    Builds a dictionary where each seq name gives a list of the other seq names.
-    """
-    other_seq_names = {}
-    for seq_name in seq_names:
-        other_seq_names[seq_name] = [n for n in seq_names if n != seq_name]
-    return other_seq_names
 
 
 def log_proportion(counts):

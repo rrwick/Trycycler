@@ -48,54 +48,6 @@ def get_pairwise_alignments(seqs):
     return pairwise_cigars, percent_identities
 
 
-def get_all_pairwise_coordinates(seq_names, pairwise_cigars, seq_lengths):
-    pairwise_coordinates = {}
-    for i, a in enumerate(seq_names):
-        for j in range(i+1, len(seq_names)):
-            b = seq_names[j]
-            cigar = pairwise_cigars[(a, b)]
-            coords_1, coords_2 = get_pairwise_coordinates(a, b, cigar, seq_lengths)
-            pairwise_coordinates[(a, b)] = coords_1
-            pairwise_coordinates[(b, a)] = coords_2
-    return pairwise_coordinates
-
-
-def get_pairwise_coordinates(a, b, cigar, seq_lengths):
-    """
-    Builds two lists of coordinates for translating seq A positions to seq B positions and vice
-    versa.
-    """
-    a_to_b = [None] * seq_lengths[a]
-    b_to_a = [None] * seq_lengths[b]
-    cigar_parts = re.findall(r'\d+[IDX=]', cigar)
-
-    i, j = 0, 0
-    for p in cigar_parts:
-        size = int(p[:-1])
-        letter = p[-1]
-        if letter == '=' or letter == 'X':
-            for _ in range(size):
-                a_to_b[i] = j
-                b_to_a[j] = i
-                i += 1
-                j += 1
-        elif letter == 'I':  # insertion means in seq A but not in seq B
-            for _ in range(size):
-                a_to_b[i] = None
-                i += 1
-        elif letter == 'D':  # deletion means in seq B but not in seq A
-            for _ in range(size):
-                b_to_a[j] = None
-                j += 1
-        else:
-            assert False
-
-    assert i == seq_lengths[a]
-    assert j == seq_lengths[b]
-
-    return a_to_b, b_to_a
-
-
 def identity_and_max_indel_from_cigar(cigar):
     cigar_parts = re.findall(r'\d+[IDX=]', cigar)
     total, matches, max_indel = 0, 0, 0
