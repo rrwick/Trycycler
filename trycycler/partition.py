@@ -90,43 +90,43 @@ def align_reads(cluster_dirs, reads, threads, min_aligned_len, min_read_cov):
     best_matching_bases = collections.defaultdict(int)
     for d in cluster_dirs:
         contigs = sorted(d.glob('2_all_seqs.fasta'))
-        for f in contigs:
-            seqs = load_fasta(f)
-            for name, seq in seqs:
-                seq_len = len(seq)
-                log(f'{f}, {name} ({len(seq):,} bp)', end=': ')
-                doubled_seq = seq + seq
-                alignments = align_reads_to_seq(reads, doubled_seq, threads, include_cigar=False)
+        assert len(contigs) == 1
+        seqs = load_fasta(contigs[0])
 
-                # Toss out alignments entirely in the second half of the doubled sequence.
-                alignments = [a for a in alignments if a.ref_start < seq_len]
-                log(f'{len(alignments):,} alignments')
+        for name, seq in seqs:
+            seq_len = len(seq)
+            log(f'{name} ({len(seq):,} bp)', end=': ')
+            doubled_seq = seq + seq
+            alignments = align_reads_to_seq(reads, doubled_seq, threads, include_cigar=False)
 
-                # Group alignments by read name.
-                alignments_by_read = collections.defaultdict(list)
-                for a in alignments:
-                    alignments_by_read[a.query_name].append(a)
+            # Toss out alignments entirely in the second half of the doubled sequence.
+            alignments = [a for a in alignments if a.ref_start < seq_len]
+            log(f'{len(alignments):,} alignments')
 
-                # Only consider reads for which enough sequence aligned and a large enough fraction
-                # of the read aligned. Note that it's okay for this to come in multiple alignments,
-                # so a read which glitches out in the middle can still pass.
-                for read_name, read_alignments in alignments_by_read.items():
-                    range = IntRange()
-                    read_length = None
-                    for a in read_alignments:
-                        read_length = a.query_length
-                        range.add_range(a.query_start, a.query_end)
-                    if range.total_length() < min_aligned_len:
-                        continue
-                    read_coverage = 100.0 * range.total_length() / read_length
-                    if read_coverage < min_read_cov:
-                        continue
+            # Group alignments by read name.
+            alignments_by_read = collections.defaultdict(list)
+            for a in alignments:
+                alignments_by_read[a.query_name].append(a)
 
-                    # If the read passed the checks, then we remember its best single alignment.
-                    for a in alignments:
-                        if a.matching_bases > best_matching_bases[read_name]:
-                            best_clusters[read_name] = d
-                            best_matching_bases[read_name] = a.matching_bases
+            # Only consider reads for which enough sequence aligned and a large enough fraction
+            # of the read aligned. Note that it's okay for this to come in multiple alignments,
+            # so a read which glitches out in the middle can still pass.
+            for read_name, read_alignments in alignments_by_read.items():
+                r = IntRange()
+                read_length = None
+                for a in read_alignments:
+                    read_length = a.query_length
+                    r.add_range(a.query_start, a.query_end)
+                total_len = r.total_length()
+                read_coverage = 100.0 * total_len / read_length
+                if total_len < min_aligned_len or read_coverage < min_read_cov:
+                    continue
+
+                # If the read passed the checks, then we remember its best single alignment.
+                for a in read_alignments:
+                    if a.matching_bases > best_matching_bases[read_name]:
+                        best_clusters[read_name] = d
+                        best_matching_bases[read_name] = a.matching_bases
     log()
 
     return best_clusters
