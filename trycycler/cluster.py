@@ -97,6 +97,8 @@ def load_assembly_sequences(filenames):
         fasta_names[letter] = f
         seqs = load_fasta(f)
         for name, seq in seqs:
+            if len(seq) < 32:  # very short sequences won't work in Mash
+                continue
             name = name.replace('#', '_')  # hashes in names can sometimes cause downstream problems
             full_name = f'{letter}_{name}'
             assembly_seqs[full_name] = seq
