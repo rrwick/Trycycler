@@ -73,7 +73,7 @@ def check_length_ratios(length_matrix, max_length_diff):
     max_ratio = length_matrix[max_pair]
     min_threshold, max_threshold = get_length_thresholds(max_length_diff)
     if min_ratio < min_threshold or max_ratio > max_threshold:
-        sys.exit('Error: there is too much length difference between contigs')
+        sys.exit('\nError: there is too much length difference between contigs')
 
 
 def get_length_thresholds(max_length_diff):
@@ -92,4 +92,4 @@ def check_mash_distances(mash_matrix, max_mash_dist):
     max_pair = max(mash_matrix, key=mash_matrix.get)
     max_dist = mash_matrix[max_pair]
     if max_dist > max_mash_dist:
-        sys.exit(f'Error: there is too much Mash distance between contigs')
+        sys.exit(f'\nError: there is too much Mash distance between contigs')

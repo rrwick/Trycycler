@@ -25,6 +25,7 @@ import numpy as np
 from .log import log, section_header, explanation
 from .mash import get_mash_dist_matrix
 from .misc import get_sequence_file_type, load_fasta
+from .software import check_mash
 
 
 def cluster(args):
@@ -51,17 +52,17 @@ def check_inputs_and_requirements(args):
 
 def check_input_assemblies(filenames):
     if len(filenames) < 2:
-        sys.exit('Error: two or more input assemblies are required')
+        sys.exit('\nError: two or more input assemblies are required')
     log(f'Input assemblies:')
     for i, f in enumerate(filenames):
         contig_type = get_sequence_file_type(f)
         if contig_type != 'FASTA':
-            sys.exit(f'Error: input assembly file ({f}) is not in FASTA format')
+            sys.exit(f'\nError: input assembly file ({f}) is not in FASTA format')
         seqs = load_fasta(f)
         contig_names = set()
         for contig_name, _ in seqs:
             if contig_name in contig_names:
-                sys.exit(f'Error: duplicate contig name: {contig_name}')
+                sys.exit(f'\nError: duplicate contig name: {contig_name}')
             contig_names.add(contig_name)
         contig_count = len(seqs)
         total_length = sum(len(s[1]) for s in seqs)
@@ -73,9 +74,9 @@ def check_input_assemblies(filenames):
 
 def check_output_directory(directory):
     if directory.is_file():
-        sys.exit(f'Error: output directory ({directory}) already exists as a file')
+        sys.exit(f'\nError: output directory ({directory}) already exists as a file')
     if directory.is_dir():
-        sys.exit(f'Error: output directory ({directory}) already exists')
+        sys.exit(f'\nError: output directory ({directory}) already exists')
     else:
         log(f'Creating output directory: {directory}')
         directory.mkdir(parents=True)
@@ -83,12 +84,10 @@ def check_output_directory(directory):
 
 
 def check_required_software():
-    pass
-    # TODO
-    # TODO
-    # TODO
-    # TODO
-    # TODO
+    log('Checking required software:')
+    check_mash()
+    # TODO: check for R/ape/phangorn
+    log()
 
 
 def load_assembly_sequences(filenames):

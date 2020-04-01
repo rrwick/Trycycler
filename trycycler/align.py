@@ -19,6 +19,7 @@ from .initial_check import initial_sanity_check
 from .log import log, section_header, explanation, dim, red
 from .misc import get_sequence_file_type, load_fasta, get_fastq_stats
 from .pairwise import get_pairwise_alignments
+from .software import check_minimap2
 from .starting_seq import get_starting_seq, rotate_to_starting_seq
 from . import settings
 
@@ -67,7 +68,7 @@ def load_contig_sequences(cluster_dir):
 def check_input_reads(filename):
     read_type = get_sequence_file_type(filename)
     if read_type != 'FASTQ':
-        sys.exit(f'Error: input reads ({filename}) are not in FASTQ format')
+        sys.exit(f'\nError: input reads ({filename}) are not in FASTQ format')
     log(f'Input reads: {filename}')
     read_count, total_size, n50 = get_fastq_stats(filename)
     log(f'  {read_count:,} reads ({total_size:,} bp)')
@@ -78,23 +79,23 @@ def check_input_reads(filename):
 def check_input_contigs(cluster_dir):
     filenames = get_contigs_from_cluster_dir(cluster_dir)
     if len(filenames) < 2:
-        sys.exit('Error: two or more input contigs are required')
+        sys.exit('\nError: two or more input contigs are required')
     if len(filenames) > settings.MAX_INPUT_CONTIGS:
-        sys.exit(f'Error: you cannot have more than {settings.MAX_INPUT_CONTIGS} input contigs')
+        sys.exit(f'\nError: you cannot have more than {settings.MAX_INPUT_CONTIGS} input contigs')
     log(f'Input contigs:')
     contig_names = set()
     for f in filenames:
         contig_type = get_sequence_file_type(f)
         if contig_type != 'FASTA':
-            sys.exit(f'Error: input contig file ({f}) is not in FASTA format')
+            sys.exit(f'\nError: input contig file ({f}) is not in FASTA format')
         seqs = load_fasta(f)
         if len(seqs) == 0:
-            sys.exit(f'Error: input contig file ({f}) contains no sequences')
+            sys.exit(f'\nError: input contig file ({f}) contains no sequences')
         if len(seqs) > 1:
-            sys.exit(f'Error: input contig file ({f}) contains multiple sequences')
+            sys.exit(f'\nError: input contig file ({f}) contains multiple sequences')
         contig_name = seqs[0][0]
         if contig_name in contig_names:
-            sys.exit(f'Error: duplicate contig name: {contig_name}')
+            sys.exit(f'\nError: duplicate contig name: {contig_name}')
         contig_names.add(contig_name)
         contig_len = len(seqs[0][1])
         log(f'  {f} ({contig_len:,} bp)')
@@ -104,24 +105,21 @@ def check_input_contigs(cluster_dir):
 def get_contigs_from_cluster_dir(cluster_dir):
     contig_dir = cluster_dir / '1_contigs'
     if not contig_dir.is_dir():
-        sys.exit(f'Error: contig directory ({contig_dir}) does not exist')
+        sys.exit(f'\nError: contig directory ({contig_dir}) does not exist')
     return sorted(contig_dir.glob('*.fasta'))
 
 
 def check_cluster_directory(directory):
     if directory.is_file():
-        sys.exit(f'Error: output directory ({directory}) already exists as a file')
+        sys.exit(f'\nError: output directory ({directory}) already exists as a file')
     if not directory.is_dir():
-        sys.exit(f'Error: output directory ({directory}) does not exist')
+        sys.exit(f'\nError: output directory ({directory}) does not exist')
 
 
 def check_required_software():
-    pass
-    # TODO
-    # TODO
-    # TODO
-    # TODO
-    # TODO
+    log('Checking required software:')
+    check_minimap2()
+    log()
 
 
 def save_seqs_to_fasta(seqs, filename):
@@ -168,6 +166,6 @@ def print_identity_matrix(seqs, percent_identities, min_allowed_identity):
         log()
     log()
     if failed:
-        sys.exit(f'Error: some pairwise identities are below the minimum allowed value '
+        sys.exit(f'\nError: some pairwise identities are below the minimum allowed value '
                  f'({min_allowed_identity}%). Please remove offending '
                  f'sequences or lower the threshold and try again.')

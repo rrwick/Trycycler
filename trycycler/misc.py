@@ -38,9 +38,9 @@ def get_compression_type(filename):
         if file_start.startswith(magic_bytes):
             compression_type = file_type
     if compression_type == 'bz2':
-        sys.exit('Error: cannot use bzip2 format - use gzip instead')
+        sys.exit('\nError: cannot use bzip2 format - use gzip instead')
     if compression_type == 'zip':
-        sys.exit('Error: cannot use zip format - use gzip instead')
+        sys.exit('\nError: cannot use zip format - use gzip instead')
     return compression_type
 
 
@@ -56,7 +56,7 @@ def get_sequence_file_type(filename):
     Determines whether a file is FASTA or FASTQ.
     """
     if not os.path.isfile(filename):
-        sys.exit('Error: could not find {}'.format(filename))
+        sys.exit(f'\nError: could not find {filename}')
     if get_compression_type(filename) == 'gz':
         open_func = gzip.open
     else:  # plain text
@@ -76,7 +76,7 @@ def get_sequence_file_type(filename):
 
 def iterate_fastq(filename):
     if get_sequence_file_type(filename) != 'FASTQ':
-        sys.exit('Error: {} is not FASTQ format'.format(filename))
+        sys.exit('\nError: {} is not FASTQ format'.format(filename))
     with get_open_func(filename)(filename, 'rt') as fastq:
         for line in fastq:
             line = line.strip()
@@ -202,12 +202,12 @@ def means_of_slices(iterable, slice_size):
 
 def check_python_version():
     if sys.version_info.major < 3 or sys.version_info.minor < 6:
-        sys.exit('Error: Trycycler requires Python 3.6 or later')
+        sys.exit('\nError: Trycycler requires Python 3.6 or later')
 
 
 def check_output_directory(directory):
     if directory.is_file():
-        sys.exit(f'Error: output directory ({directory}) already exists as a file')
+        sys.exit(f'\nError: output directory ({directory}) already exists as a file')
     if directory.is_dir():
         log(f'Output directory ({directory}) already exists - files may be overwritten.')
     else:

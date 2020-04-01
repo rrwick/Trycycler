@@ -17,6 +17,7 @@ import sys
 from .base_scores import get_per_base_scores, add_indels_to_per_base_scores
 from .log import log, section_header, explanation
 from .misc import get_sequence_file_type, load_fasta, get_fastq_stats
+from .software import check_minimap2
 
 
 def consensus(args):
@@ -67,7 +68,7 @@ def check_input_reads(cluster_dir):
     filename = cluster_dir / '4_reads.fastq'
     read_type = get_sequence_file_type(filename)
     if read_type != 'FASTQ':
-        sys.exit(f'Error: input reads ({filename}) are not in FASTQ format')
+        sys.exit(f'\nError: input reads ({filename}) are not in FASTQ format')
     log(f'Input reads: {filename}')
     read_count, total_size, n50 = get_fastq_stats(filename)
     log(f'  {read_count:,} reads ({total_size:,} bp)')
@@ -80,14 +81,14 @@ def check_seqs(cluster_dir):
     log(f'Input contigs: {filename}')
     contig_type = get_sequence_file_type(filename)
     if contig_type != 'FASTA':
-        sys.exit(f'Error: input contig file ({filename}) is not in FASTA format')
+        sys.exit(f'\nError: input contig file ({filename}) is not in FASTA format')
     seqs = load_fasta(filename)
     if len(seqs) == 0:
-        sys.exit(f'Error: input contig file ({filename}) contains no sequences')
+        sys.exit(f'\nError: input contig file ({filename}) contains no sequences')
     contig_names = set()
     for contig_name, seq in seqs:
         if contig_name in contig_names:
-            sys.exit(f'Error: duplicate contig name: {contig_name}')
+            sys.exit(f'\nError: duplicate contig name: {contig_name}')
         contig_names.add(contig_name)
         log(f'  {contig_name}: {len(seq):,} bp')
     log()
@@ -95,30 +96,27 @@ def check_seqs(cluster_dir):
 
 def check_cluster_directory(directory):
     if directory.is_file():
-        sys.exit(f'Error: output directory ({directory}) already exists as a file')
+        sys.exit(f'\nError: output directory ({directory}) already exists as a file')
     if not directory.is_dir():
-        sys.exit(f'Error: output directory ({directory}) does not exist')
+        sys.exit(f'\nError: output directory ({directory}) does not exist')
 
     seq_file = directory / '2_all_seqs.fasta'
     if not seq_file.is_file():
-        sys.exit(f'Error: output directory ({directory}) does not contain2_all_seqs.fasta')
+        sys.exit(f'\nError: output directory ({directory}) does not contain2_all_seqs.fasta')
 
     pairwise_file = directory / '3_msa.fasta'
     if not pairwise_file.is_file():
-        sys.exit(f'Error: output directory ({directory}) does not contain 3_msa.fasta')
+        sys.exit(f'\nError: output directory ({directory}) does not contain 3_msa.fasta')
 
     reads_file = directory / '4_reads.fastq'
     if not reads_file.is_file():
-        sys.exit(f'Error: output directory ({directory}) does not contain 4_reads.fastq')
+        sys.exit(f'\nError: output directory ({directory}) does not contain 4_reads.fastq')
 
 
 def check_required_software():
-    pass
-    # TODO
-    # TODO
-    # TODO
-    # TODO
-    # TODO
+    log('Checking required software:')
+    check_minimap2()
+    log()
 
 
 def load_seqs(cluster_dir):

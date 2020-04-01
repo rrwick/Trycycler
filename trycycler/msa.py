@@ -20,6 +20,7 @@ import tempfile
 
 from .log import log, section_header, explanation
 from .misc import load_fasta, count_substrings, get_sequence_file_type
+from .software import check_muscle
 
 
 def msa(args):
@@ -71,7 +72,7 @@ def partition_sequences(seqs, kmer, step, lookahead, temp_dir):
         seq_positions = new_positions
         i += 1
     log('\n')
-    log(f'median piece size: {statistics.median(chunk_sizes):,} bp')
+    log(f'median piece size: {int(statistics.median(chunk_sizes)):,} bp')
     log(f'max piece size:    {max(chunk_sizes):,} bp')
     log()
 
@@ -181,19 +182,19 @@ def check_inputs_and_requirements(args):
     check_cluster_directory(args.cluster_dir)
     check_input_sequences(args.cluster_dir)
     check_required_software()
-    log()
 
 
 def check_cluster_directory(directory):
     if directory.is_file():
-        sys.exit(f'Error: output directory ({directory}) already exists as a file')
+        sys.exit(f'\nError: output directory ({directory}) already exists as a file')
     if not directory.is_dir():
-        sys.exit(f'Error: output directory ({directory}) does not exist')
+        sys.exit(f'\nError: output directory ({directory}) does not exist')
 
 
 def check_required_software():
-    pass
-    # TODO: check for muscle
+    log('Checking required software:')
+    check_muscle()
+    log()
 
 
 def check_input_sequences(cluster_dir):
@@ -201,13 +202,14 @@ def check_input_sequences(cluster_dir):
 
     contig_type = get_sequence_file_type(f)
     if contig_type != 'FASTA':
-        sys.exit(f'Error: input sequence file ({f}) is not in FASTA format')
+        sys.exit(f'\nError: input sequence file ({f}) is not in FASTA format')
 
     seqs = load_fasta(f)
     if len(seqs) < 2:
-        sys.exit(f'Error: input file ({f}) must have two or more sequences')
+        sys.exit(f'\nError: input file ({f}) must have two or more sequences')
 
     log('Input sequences:')
     for name, seq in seqs:
         log(f'  {name}: {len(seq):,} bp')
+    log()
 

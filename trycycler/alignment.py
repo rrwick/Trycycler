@@ -28,7 +28,7 @@ class Alignment(object):
     def __init__(self, paf_line):
         line_parts = paf_line.strip().split('\t')
         if len(line_parts) < 11:
-            sys.exit('Error: alignment file does not seem to be in PAF format')
+            sys.exit('\nError: alignment file does not seem to be in PAF format')
 
         self.query_name = line_parts[0]
         self.query_length = int(line_parts[1])

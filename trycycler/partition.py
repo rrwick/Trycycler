@@ -18,6 +18,7 @@ from .alignment import align_reads_to_seq
 from .intrange import IntRange
 from .log import log, section_header, explanation
 from .misc import get_sequence_file_type, load_fasta, iterate_fastq, get_fastq_stats
+from .software import check_minimap2
 
 
 def partition(args):
@@ -43,7 +44,7 @@ def check_inputs_and_requirements(args):
 def check_input_reads(filename):
     read_type = get_sequence_file_type(filename)
     if read_type != 'FASTQ':
-        sys.exit(f'Error: input reads ({filename}) are not in FASTQ format')
+        sys.exit(f'\nError: input reads ({filename}) are not in FASTQ format')
     log(f'Input reads: {filename}')
     read_count, total_size, n50 = get_fastq_stats(filename)
     log(f'  {read_count:,} reads ({total_size:,} bp)')
@@ -53,20 +54,20 @@ def check_input_reads(filename):
 
 def check_input_clusters(cluster_dirs):
     if len(cluster_dirs) < 1:
-        sys.exit('Error: one or more input cluster directories are required')
+        sys.exit('\nError: one or more input cluster directories are required')
     log(f'Input clusters:')
     for d in cluster_dirs:
         contigs = sorted(d.glob('2_all_seqs.fasta'))
         if not contigs:
-            sys.exit(f'Error: there is not 2_all_seqs.fasta file in {d}')
+            sys.exit(f'\nError: there is not 2_all_seqs.fasta file in {d}')
         assert len(contigs) == 1
         f = contigs[0]
         contig_type = get_sequence_file_type(f)
         if contig_type != 'FASTA':
-            sys.exit(f'Error: input contig file ({f}) is not in FASTA format')
+            sys.exit(f'\nError: input contig file ({f}) is not in FASTA format')
         seqs = load_fasta(f)
         if len(seqs) == 0:
-            sys.exit(f'Error: contig file ({f}) contains no sequences')
+            sys.exit(f'\nError: contig file ({f}) contains no sequences')
         noun = 'contig' if len(seqs) == 1 else 'contigs'
         mean_len = sum(len(s[1]) for s in seqs) // len(seqs)
         log(f'  {f}: {len(seqs)} {noun}, mean length = {mean_len:,} bp')
@@ -74,12 +75,9 @@ def check_input_clusters(cluster_dirs):
 
 
 def check_required_software():
-    pass
-    # TODO
-    # TODO
-    # TODO
-    # TODO
-    # TODO
+    log('Checking required software:')
+    check_minimap2()
+    log()
 
 
 def align_reads(cluster_dirs, reads, threads, min_aligned_len, min_read_cov):

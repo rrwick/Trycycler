@@ -103,9 +103,9 @@ def rotate_to_starting_seq(seqs, starting_seq):
                       and a.query_cov >= settings.KNOWN_STARTING_SEQ_MIN_COVERAGE
                       and a.query_start == 0]
         if len(alignments) == 0:
-            sys.exit(f'Error: failed to find starting sequence in {seq_name}')
+            sys.exit(f'\nError: failed to find starting sequence in {seq_name}')
         elif len(alignments) > 1:
-            sys.exit(f'Error: found multiple instances of starting sequence in {seq_name}')
+            sys.exit(f'\nError: found multiple instances of starting sequence in {seq_name}')
         else:
             alignment = alignments[0]
             new_start_point = alignment.ref_start
@@ -137,7 +137,7 @@ def get_random_starting_sequence(seqs):
             log()
             return starting_seq
 
-    sys.exit('Error: unable to find a suitable starting sequence')
+    sys.exit('\nError: unable to find a suitable starting sequence')
 
 
 def get_random_starting_sequence_candidates(seqs):

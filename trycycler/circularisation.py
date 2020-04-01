@@ -61,7 +61,7 @@ def circularise_one_seq_with_all_others(name_a, seqs, reads, threads):
 
     if len(candidate_seqs) == 0:
         log()
-        sys.exit(f'Error: failed to circularise sequence {name_a}')
+        sys.exit(f'\nError: failed to circularise sequence {name_a}')
 
     if len(candidate_seqs) == 1:
         circularised_seq = candidate_seqs[0]
