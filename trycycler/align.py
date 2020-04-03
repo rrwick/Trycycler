@@ -35,9 +35,9 @@ def align(args):
     if circular:
         seqs = circularise(seqs, args.reads, args.threads)
         seqs = rotate_to_starting_seq(seqs, starting_seq)
-    save_seqs_to_fasta(seqs, args.cluster_dir / '2_all_seqs.fasta')
     pairwise_cigars, percent_identities = get_pairwise_alignments(seqs)
     print_identity_matrix(seqs, percent_identities, args.min_identity)
+    save_seqs_to_fasta(seqs, args.cluster_dir / '2_all_seqs.fasta')
 
 
 def welcome_message():

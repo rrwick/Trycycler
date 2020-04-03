@@ -20,8 +20,10 @@ from .log import log, section_header, explanation
 def get_pairwise_alignments(seqs):
     section_header('Pairwise global alignments')
     explanation('Trycycler uses the edlib aligner to get global alignments between all pairs of '
-                'sequences. This will allow it to \'jump\' from any sequence to the corresponding '
-                'position of any other sequence.')
+                'sequences. This can help you to spot any problematic sequences that should be '
+                'excluded before continuing. If you see any sequences with notably worse '
+                'identities or max indels, you can remove them (delete the contig\'s FASTA) and '
+                'run this command again.')
     seq_names = list(seqs.keys())
     max_seq_name_len = max(len(x) for x in seq_names)
     pairwise_cigars, percent_identities = {}, {}

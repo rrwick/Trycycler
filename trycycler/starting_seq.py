@@ -63,22 +63,22 @@ def look_for_known_starting_seq(seqs, threads):
         for a in alignments:
             all_found_starting_seq_names.add(a.query_name)
 
-    found_in_each = set()
+    found_once_in_each = set()
     for starting_seq_name in all_found_starting_seq_names:
         found_count = 0
         for alignments in per_seq_alignments.values():
-            if any(a.query_name == starting_seq_name for a in alignments):
+            if len([a for a in alignments if a.query_name == starting_seq_name]) == 1:
                 found_count += 1
         if found_count == len(seqs):
-            found_in_each.add(starting_seq_name)
+            found_once_in_each.add(starting_seq_name)
 
-    if len(found_in_each) == 0:
+    if len(found_once_in_each) == 0:
         log('Unable to find a suitable known starting sequence')
         starting_seq = None
     else:
         # If more than one starting sequence was found, choose the one with the first name (which
         # should correspond to the one with the most constituent sequences in its cluster).
-        starting_seq_name = sorted(found_in_each)[0]
+        starting_seq_name = sorted(found_once_in_each)[0]
         starting_sequences, descriptions = load_starting_sequences(starting_genes)
         starting_seq = starting_sequences[starting_seq_name]
         log(f'Found starting sequence {starting_seq_name} ({descriptions[starting_seq_name]})')
@@ -125,7 +125,7 @@ def get_random_starting_sequence(seqs):
     for starting_seq in potential_starting_seqs:
         num_alignments = []
         for seq in seqs.values():
-            alignments = align_a_to_b(starting_seq, seq)
+            alignments = align_a_to_b(starting_seq, seq, preset='map-ont')
             alignments = [a for a in alignments if a.query_cov == 100.0
                           and a.percent_identity > settings.RANDOM_STARTING_SEQ_MIN_IDENTITY]
             num_alignments.append(len(alignments))
