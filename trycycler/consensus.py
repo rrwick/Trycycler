@@ -32,11 +32,14 @@ def consensus(args):
     per_base_scores, plot_max = get_per_base_scores(seqs, args.cluster_dir, circular,
                                                     args.threads, args.plot_qual)
     per_base_scores = add_indels_to_per_base_scores(msa_seqs, per_base_scores)
-    consensus_seq = get_consensus_seq(msa_seqs, per_base_scores)
-    save_seqs_to_fasta({args.cluster_dir.name + '_consensus': consensus_seq},
-                       args.cluster_dir / '5_consensus.fasta')
-    get_per_base_scores({'consensus': consensus_seq}, args.cluster_dir, circular, args.threads,
-                        args.plot_qual, plot_max, consensus=True)
+    consensus_seq_with_gaps, consensus_seq_without_gaps = \
+        get_consensus_seq(msa_seqs, per_base_scores)
+    save_seqs_to_fasta({args.cluster_dir.name + '_consensus': consensus_seq_with_gaps},
+                       args.cluster_dir / '5_consensus_with_gaps.fasta')
+    save_seqs_to_fasta({args.cluster_dir.name + '_consensus': consensus_seq_without_gaps},
+                       args.cluster_dir / '6_consensus.fasta')
+    get_per_base_scores({'consensus': consensus_seq_without_gaps}, args.cluster_dir, circular,
+                        args.threads, args.plot_qual, plot_max, consensus=True)
 
 
 def welcome_message():
@@ -178,18 +181,20 @@ def get_consensus_seq(msa_seqs, per_base_scores):
                 best_seq_name, best_score = n, s
         assert best_seq_name is not None
         best_base = msa_seqs[best_seq_name][i]
-        if best_base != '-':
-            consensus_seq.append(best_base)
-            counts[best_seq_name] += 1
-            log_proportion(counts)
+        consensus_seq.append(best_base)
+        counts[best_seq_name] += 1
+        log_proportion(counts)
+    log_proportion(counts)
+    log('\n')
 
     # Sanity check: each base in the consensus sequence should contribute to the counts.
     assert sum(counts.values()) == len(consensus_seq)
 
-    log_proportion(counts)
-    log('\n')
-    log(f'Consensus sequence length: {len(consensus_seq):,} bp')
-    return ''.join(consensus_seq)
+    consensus_seq_with_gaps = ''.join(consensus_seq)
+    consensus_seq_without_gaps = consensus_seq_with_gaps.replace('-', '')
+
+    log(f'Consensus sequence length: {len(consensus_seq_without_gaps):,} bp')
+    return consensus_seq_with_gaps, consensus_seq_without_gaps
 
 
 def log_proportion(counts):
