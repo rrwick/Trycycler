@@ -66,19 +66,19 @@ def get_one_seq_per_base_scores(seq, reads, circular, threads):
 
     per_base_scores = [0] * len(ref_seq)
 
-    # with multiprocessing.Pool(threads) as pool:
-    #     i = 0
-    #     for alignment_scores, a in pool.imap_unordered(get_alignment_scores, alignments):
-    #         i += 1
-    #         log(f'\r  calculating alignment scores: {i:,} / {len(alignments):,}', end='')
-    #         for j, s in enumerate(alignment_scores):
-    #             ref_pos = a.ref_start + j
-    #             per_base_scores[ref_pos] += s
+    with multiprocessing.Pool(threads) as pool:
+        i = 0
+        for alignment_scores, a in pool.imap_unordered(get_alignment_scores, alignments):
+            i += 1
+            log(f'\r  calculating alignment scores: {i:,} / {len(alignments):,}', end='')
+            for j, s in enumerate(alignment_scores):
+                ref_pos = a.ref_start + j
+                per_base_scores[ref_pos] += s
 
-    for i, a in enumerate(alignments):
-        for j in range(a.ref_start, a.ref_end):
-            per_base_scores[j] += a.alignment_score
-        log(f'\r  calculating alignment scores: {i+1:,} / {len(alignments):,}', end='')
+    # for i, a in enumerate(alignments):
+    #     for j in range(a.ref_start, a.ref_end):
+    #         per_base_scores[j] += a.alignment_score
+    #     log(f'\r  calculating alignment scores: {i+1:,} / {len(alignments):,}', end='')
 
     log()
 
@@ -100,99 +100,96 @@ def get_one_seq_per_base_scores(seq, reads, circular, threads):
     return per_base_scores, total_score
 
 
-# def get_alignment_scores(a):
-#     expanded_cigar = get_expanded_cigar(a)
-#
-#     # We now make the score for each position of the expanded CIGAR. The score increases with
-#     # matches and resets to zero at fail regions. This is done in both forward and reverse
-#     # directions.
-#     forward_scores = get_cigar_scores(expanded_cigar, forward=True)
-#     reverse_scores = get_cigar_scores(expanded_cigar, forward=False)
-#
-#     # To make the final scores, we combine the forward and reverse scores, taking the minimum of
-#     # each. We also drop any insertion positions, so the scores match up with the corresponding
-#     # range of the reference sequence.
-#     return combine_forward_and_reverse_scores(a, forward_scores, reverse_scores, expanded_cigar), a
-#
-#
-# def get_expanded_cigar(a):
-#     """
-#     An expanded CIGARs has just the four characters (=, X, I and D) repeated (i.e. no numbers).
-#     Here I store it as integers (0: =, 1: X, 2: I, 3: D) and return it as a Numpy array
-#     """
-#     cigar_parts = re.findall(r'\d+[IDX=]', a.cigar)
-#     cigar_parts = [(int(c[:-1]), c[-1]) for c in cigar_parts]
-#     expanded_cigar_size = sum(p[0] for p in cigar_parts)
-#     expanded_cigar = [0] * expanded_cigar_size
-#
-#     i = 0
-#     for num, letter in cigar_parts:
-#         if letter == '=':
-#             v = 0
-#         elif letter == 'X':
-#             v = 1
-#         elif letter == 'I':
-#             v = 2
-#         elif letter == 'D':
-#             v = 3
-#         else:
-#             assert False
-#         for _ in range(num):
-#             expanded_cigar[i] = v
-#             i += 1
-#     assert i == expanded_cigar_size
-#
-#     return expanded_cigar
-#
-#
-# def get_cigar_scores(expanded_cigar, forward=True):
-#     scores = [0] * len(expanded_cigar)
-#     score, indel_run = 0, 0
-#     if forward:
-#         iterator = range(len(expanded_cigar))
-#     else:
-#         iterator = range(len(expanded_cigar) - 1, -1, -1)
-#
-#     for i in iterator:
-#
-#         # Matches increase the score.
-#         if expanded_cigar[i] == 0:
-#             score += 1
-#             indel_run = 0
-#
-#         # Mismatches don't change the score.
-#         elif expanded_cigar[i] == 1:
-#             indel_run = 0
-#
-#         # Insertions/deletions reduce the score by a factor which increases with the length of
-#         # the indel: 1 bp = 20%, 2 bp = 40%, 3 bp = 60%, 4 bp = 80%, 5 bp = 100%
-#         else:  # insertion or deletion
-#             indel_run += 1
-#             score = score * (5 - indel_run) // 5
-#             if score < 0:
-#                 score = 0
-#
-#         scores[i] = score
-#     return scores
-#
-#
-# def combine_forward_and_reverse_scores(a, forward_scores, reverse_scores, expanded_cigar):
-#     """
-#     The combined scores are the minimums values at each position, excluding insertion positions.
-#     """
-#     final_scores = [0] * (a.ref_end - a.ref_start)
-#     assert len(forward_scores) == len(reverse_scores)
-#     j = 0  # index in final_scores
-#     for i, f in enumerate(forward_scores):
-#         r = reverse_scores[i]
-#         if expanded_cigar[i] != 2:   # if not an insertion
-#             if f < r:
-#                 final_scores[j] = f
-#             else:
-#                 final_scores[j] = r
-#             j += 1
-#     assert len(final_scores) == j
-#     return final_scores
+def get_alignment_scores(a):
+    expanded_cigar = get_expanded_cigar(a)
+
+    # We now make the score for each position of the expanded CIGAR. The score increases with
+    # matches and resets to zero at fail regions. This is done in both forward and reverse
+    # directions.
+    forward_scores = get_cigar_scores(expanded_cigar, forward=True)
+    reverse_scores = get_cigar_scores(expanded_cigar, forward=False)
+
+    # To make the final scores, we combine the forward and reverse scores, taking the minimum of
+    # each. We also drop any insertion positions, so the scores match up with the corresponding
+    # range of the reference sequence.
+    return combine_forward_and_reverse_scores(a, forward_scores, reverse_scores, expanded_cigar), a
+
+
+def get_expanded_cigar(a):
+    """
+    An expanded CIGARs has just the four characters (=, X, I and D) repeated (i.e. no numbers).
+    Here I store it as integers (0: =, 1: X, 2: I, 3: D) and return it as a Numpy array
+    """
+    cigar_parts = re.findall(r'\d+[IDX=]', a.cigar)
+    cigar_parts = [(int(c[:-1]), c[-1]) for c in cigar_parts]
+    expanded_cigar_size = sum(p[0] for p in cigar_parts)
+    expanded_cigar = [0] * expanded_cigar_size
+
+    i = 0
+    for num, letter in cigar_parts:
+        if letter == '=':
+            v = 0
+        elif letter == 'X':
+            v = 1
+        elif letter == 'I':
+            v = 2
+        elif letter == 'D':
+            v = 3
+        else:
+            assert False
+        for _ in range(num):
+            expanded_cigar[i] = v
+            i += 1
+    assert i == expanded_cigar_size
+
+    return expanded_cigar
+
+
+def get_cigar_scores(expanded_cigar, forward=True):
+    scores = [0] * len(expanded_cigar)
+    score = 0
+    if forward:
+        iterator = range(len(expanded_cigar))
+    else:
+        iterator = range(len(expanded_cigar) - 1, -1, -1)
+
+    for i in iterator:
+
+        # Matches increase the score.
+        if expanded_cigar[i] == 0:
+            score += 1
+
+        # Mismatches reduce the score.
+        elif expanded_cigar[i] == 1:
+            score -= 1
+
+        # Insertions/deletions reduce the score more than mismatches.
+        else:  # insertion or deletion
+            score -= 2
+
+        if score < 0:
+            score = 0
+        scores[i] = score
+    return scores
+
+
+def combine_forward_and_reverse_scores(a, forward_scores, reverse_scores, expanded_cigar):
+    """
+    The combined scores are the minimums values at each position, excluding insertion positions.
+    """
+    final_scores = [0] * (a.ref_end - a.ref_start)
+    assert len(forward_scores) == len(reverse_scores)
+    j = 0  # index in final_scores
+    for i, f in enumerate(forward_scores):
+        r = reverse_scores[i]
+        if expanded_cigar[i] != 2:   # if not an insertion
+            if f < r:
+                final_scores[j] = f
+            else:
+                final_scores[j] = r
+            j += 1
+    assert len(final_scores) == j
+    return final_scores
 
 
 class MyAxes(matplotlib.axes.Axes):
