@@ -74,12 +74,6 @@ def get_one_seq_per_base_scores(seq, reads, circular, threads):
             for j, s in enumerate(alignment_scores):
                 ref_pos = a.ref_start + j
                 per_base_scores[ref_pos] += s
-
-    # for i, a in enumerate(alignments):
-    #     for j in range(a.ref_start, a.ref_end):
-    #         per_base_scores[j] += a.alignment_score
-    #     log(f'\r  calculating alignment scores: {i+1:,} / {len(alignments):,}', end='')
-
     log()
 
     # If the sequence was doubled, we now have to undouble it by collapsing the two halves of the
@@ -147,7 +141,7 @@ def get_expanded_cigar(a):
 
 def get_cigar_scores(expanded_cigar, forward=True):
     scores = [0] * len(expanded_cigar)
-    score = 0
+    score, indel_run = 0, 0
     if forward:
         iterator = range(len(expanded_cigar))
     else:
@@ -158,14 +152,16 @@ def get_cigar_scores(expanded_cigar, forward=True):
         # Matches increase the score.
         if expanded_cigar[i] == 0:
             score += 1
+            indel_run = 0
 
-        # Mismatches reduce the score.
+        # Mismatches decrease the score by 1.
         elif expanded_cigar[i] == 1:
-            score -= 1
+            indel_run = 0
 
-        # Insertions/deletions reduce the score more than mismatches.
+        # Insertions/deletions decrease the score by the indel length.
         else:  # insertion or deletion
-            score -= 2
+            indel_run += 1
+            score -= indel_run
 
         if score < 0:
             score = 0
@@ -236,7 +232,6 @@ def add_indels_to_per_base_scores(msa_seqs, per_base_scores):
     This function takes the per-base scores as input and outputs a similar set of per-base scores,
     but this time with the MSA indels included. All output per-base score lists will therefore be
     the same length.
-
     For example:
       seq:    ACGACTAGCTACACG  ->  ACGACT--AGCTAC-ACG
       scores: 356289238951365  ->  356289222389511365
