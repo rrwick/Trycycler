@@ -11,6 +11,8 @@ details. You should have received a copy of the GNU General Public License along
 If not, see <http://www.gnu.org/licenses/>.
 """
 
+import collections
+import random
 import string
 import sys
 
@@ -188,6 +190,7 @@ def get_consensus_seq(msa_seqs, per_base_scores):
     consensus_seq_without_gaps = consensus_seq_with_gaps.replace('-', '')
 
     log(f'Consensus sequence length: {len(consensus_seq_without_gaps):,} bp')
+    log()
     return consensus_seq_with_gaps, consensus_seq_without_gaps
 
 
@@ -201,11 +204,29 @@ def log_proportion(counts):
 
 
 def get_best_base(msa_seqs, per_base_scores, seq_names, i):
-    best_seq_name, best_score = None, None
-    for n in seq_names:
-        s = per_base_scores[n][i]
-        if best_score is None or s > best_score:
-            best_seq_name, best_score = n, s
-    assert best_seq_name is not None
-    best_base = msa_seqs[best_seq_name][i]
+    # Get the base with the highest total score. This will probably be the most common base at that
+    # position in the MSA.
+    base_scores = collections.defaultdict(int)
+    for name in seq_names:
+        base = msa_seqs[name][i]
+        score = per_base_scores[name][i]
+        base_scores[base] += score
+    best_base = max(base_scores, key=base_scores.get)
+
+    # Get the sequence name with the best base and the best score. If multiple sequences tie, then
+    # we choose one at random.
+    best_seq_names, best_score = [], None
+    for name in seq_names:
+        base = msa_seqs[name][i]
+        if base == best_base:
+            score = per_base_scores[name][i]
+            if best_score is None or score > best_score:
+                best_seq_names = [name]
+                best_score = score
+            elif score == best_score:
+                best_seq_names.append(name)
+    assert best_score is not None
+    assert len(best_seq_names) >= 1
+    best_seq_name = random.choice(best_seq_names)
+
     return best_base, best_seq_name
