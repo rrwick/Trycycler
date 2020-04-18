@@ -1,7 +1,6 @@
 """
 Copyright 2019 Ryan Wick (rrwick@gmail.com)
 https://github.com/rrwick/Trycycler
-
 This file is part of Trycycler. Trycycler is free software: you can redistribute it and/or modify
 it under the terms of the GNU General Public License as published by the Free Software Foundation,
 either version 3 of the License, or (at your option) any later version. Trycycler is distributed
@@ -154,17 +153,18 @@ def get_cigar_scores(expanded_cigar, forward=True):
             score += 1
             indel_run = 0
 
-        # Mismatches decrease the score by 1.
+        # Mismatches don't change the score.
         elif expanded_cigar[i] == 1:
             indel_run = 0
 
-        # Insertions/deletions decrease the score by the indel length.
+        # Insertions/deletions reduce the score by a factor which increases with the length of
+        # the indel: 1 bp = 20%, 2 bp = 40%, 3 bp = 60%, 4 bp = 80%, 5 bp = 100%
         else:  # insertion or deletion
             indel_run += 1
-            score -= indel_run
+            score = score * (5 - indel_run) // 5
+            if score < 0:
+                score = 0
 
-        if score < 0:
-            score = 0
         scores[i] = score
     return scores
 
