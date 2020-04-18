@@ -174,13 +174,7 @@ def get_consensus_seq(msa_seqs, per_base_scores):
 
     log('Consensus sequence composition:')
     for i in range(msa_length):
-        best_seq_name, best_score = None, None
-        for n in seq_names:
-            s = per_base_scores[n][i]
-            if best_score is None or s > best_score:
-                best_seq_name, best_score = n, s
-        assert best_seq_name is not None
-        best_base = msa_seqs[best_seq_name][i]
+        best_base, best_seq_name = get_best_base(msa_seqs, per_base_scores, seq_names, i)
         consensus_seq.append(best_base)
         counts[best_seq_name] += 1
         log_proportion(counts)
@@ -204,3 +198,14 @@ def log_proportion(counts):
         proportion = 100.0 * count / total
         proportions.append(f'{seq_name}: {proportion:.2f}%')
     log('\r  ' + ', '.join(proportions), end='    ')
+
+
+def get_best_base(msa_seqs, per_base_scores, seq_names, i):
+    best_seq_name, best_score = None, None
+    for n in seq_names:
+        s = per_base_scores[n][i]
+        if best_score is None or s > best_score:
+            best_seq_name, best_score = n, s
+    assert best_seq_name is not None
+    best_base = msa_seqs[best_seq_name][i]
+    return best_base, best_seq_name
