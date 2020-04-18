@@ -179,7 +179,8 @@ def get_consensus_seq(msa_seqs, per_base_scores):
         best_base, best_seq_name = get_best_base(msa_seqs, per_base_scores, seq_names, i)
         consensus_seq.append(best_base)
         counts[best_seq_name] += 1
-        log_proportion(counts)
+        if i % 1000 == 0:
+            log_proportion(counts)
     log_proportion(counts)
     log('\n')
 
