@@ -140,7 +140,7 @@ def get_expanded_cigar(a):
 
 def get_cigar_scores(expanded_cigar, forward=True):
     scores = [0] * len(expanded_cigar)
-    score, indel_run = 0, 0
+    score = 0
     if forward:
         iterator = range(len(expanded_cigar))
     else:
@@ -151,20 +151,17 @@ def get_cigar_scores(expanded_cigar, forward=True):
         # Matches increase the score.
         if expanded_cigar[i] == 0:
             score += 1
-            indel_run = 0
 
-        # Mismatches don't change the score.
+        # Mismatches decrease the score by a fixed amount.
         elif expanded_cigar[i] == 1:
-            indel_run = 0
+            score -= 1
 
-        # Insertions/deletions reduce the score by a factor which increases with the length of
-        # the indel: 1 bp = 20%, 2 bp = 40%, 3 bp = 60%, 4 bp = 80%, 5 bp = 100%
-        else:  # insertion or deletion
-            indel_run += 1
-            score = score * (5 - indel_run) // 5
-            if score < 0:
-                score = 0
+        # Insertions/deletions decrease the score by a factor.
+        else:
+            score = score * 4 // 5
 
+        if score < 0:
+            score = 0
         scores[i] = score
     return scores
 
