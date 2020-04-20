@@ -158,7 +158,7 @@ def get_cigar_scores(expanded_cigar, forward=True):
 
         # Insertions/deletions decrease the score more.
         else:
-            score -= 2
+            score -= 3
 
         if score < 0:
             score = 0
