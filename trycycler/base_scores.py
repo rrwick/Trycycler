@@ -152,13 +152,13 @@ def get_cigar_scores(expanded_cigar, forward=True):
         if expanded_cigar[i] == 0:
             score += 1
 
-        # Mismatches decrease the score.
+        # Mismatches don't change the score.
         elif expanded_cigar[i] == 1:
-            score -= 1
+            pass
 
-        # Insertions/deletions decrease the score more.
+        # Insertions/deletions decrease the score.
         else:
-            score -= 3
+            score -= 1
 
         if score < 0:
             score = 0
