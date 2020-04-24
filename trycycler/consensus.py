@@ -12,11 +12,11 @@ If not, see <http://www.gnu.org/licenses/>.
 """
 
 import collections
-import random
 import sys
 
+from .alignment import align_reads_to_seq
 from .log import log, section_header, explanation
-from .misc import get_sequence_file_type, load_fasta, get_fastq_stats
+from .misc import get_sequence_file_type, load_fasta, get_fastq_stats, range_overlap
 from .software import check_minimap2
 from . import settings
 
@@ -30,32 +30,17 @@ def consensus(args):
     sanity_check_msa(seqs, seq_names, seq_lengths, msa_seqs, msa_names, msa_length)
 
     chunks = partition_msa(msa_seqs, msa_names, msa_length, settings.CHUNK_COMBINE_SIZE)
-
-
-
-
-
-
-
-    section_header('Saving initial consensus')
-
-    circular = not args.linear
+    save_chunks_as_graph(chunks, '5_chunked_sequence.gfa')
 
     consensus_seq_with_gaps = ''.join([c.get_best_seq() for c in chunks])
     consensus_seq_without_gaps = consensus_seq_with_gaps.replace('-', '')
-
-    save_seqs_to_fasta({args.cluster_dir.name + '_consensus': consensus_seq_with_gaps},
-                       args.cluster_dir / '5_consensus_with_gaps.fasta', extra_newline=False)
     save_seqs_to_fasta({args.cluster_dir.name + '_consensus': consensus_seq_without_gaps},
-                       args.cluster_dir / '6_consensus.fasta')
+                       args.cluster_dir / '6_initial_consensus.fasta')
 
-
-
-
-
-
-
-
+    circular = not args.linear
+    index_reads(args.cluster_dir, chunks, consensus_seq_with_gaps, consensus_seq_without_gaps,
+                circular, args.threads, args.min_read_cov, args.min_aligned_len)
+    choose_best_chunk_options(chunks)
 
 
 def welcome_message():
@@ -94,7 +79,9 @@ def partition_msa(msa_seqs, seq_names, msa_length, combine_size):
         chunks.append(current_chunk)
         chunk_count += 1
 
-    log(f'\rchunks: {chunk_count:,}', end='')
+    same_count = len([c for c in chunks if c.type == 'same'])
+    different_count = len([c for c in chunks if c.type == 'different'])
+    log(f'\rchunks: {chunk_count:,} ({same_count:,} same, {different_count:,} different)', end='')
     log()
 
     sanity_check_chunks(chunks, msa_length)
@@ -103,6 +90,98 @@ def partition_msa(msa_seqs, seq_names, msa_length, combine_size):
     log()
 
     return chunks
+
+
+def index_reads(cluster_dir, chunks, consensus_seq_with_gaps, consensus_seq_without_gaps,
+                circular, threads, min_read_cov, min_aligned_len):
+    section_header('Indexing reads')
+    explanation('Trycycler now aligns all reads to the initial consensus to form an index of '
+                'which reads will be informative to each of the chunks.')
+
+    ungapped_to_gapped = make_ungapped_pos_to_gapped_pos_dict(consensus_seq_with_gaps,
+                                                              consensus_seq_without_gaps)
+    reads = cluster_dir / '4_reads.fastq'
+    ungapped_len = len(consensus_seq_without_gaps)
+    gapped_len = len(consensus_seq_with_gaps)
+
+    log('Aligning reads to initial consensus:')
+    if circular:
+        ref_seq = consensus_seq_without_gaps + consensus_seq_without_gaps
+        alignments = align_reads_to_seq(reads, ref_seq, threads)
+        alignments = [a for a in alignments if a.ref_start < ungapped_len]
+    else:
+        ref_seq = consensus_seq_without_gaps
+        alignments = align_reads_to_seq(reads, ref_seq, threads)
+    log(f'  {len(alignments):,} alignments')
+    log()
+
+    log('Filtering for best alignment per read:')
+    alignments = get_best_alignment_per_read(alignments)
+    alignments = [a for a in alignments if a.query_cov >= min_read_cov
+                  and a.query_end - a.query_start >= min_aligned_len]
+    log(f'  {len(alignments):,} alignments')
+    log()
+
+    different_chunk_count = len([c for c in chunks if c.type == 'different'])
+    chunk_start = 0
+    completed = 0
+    log(f'\rGathering reads for chunks: {completed:,} / {different_chunk_count:,}', end='')
+    for chunk in chunks:
+        chunk_end = chunk_start + chunk.get_length()
+        if chunk.type == 'different':
+            for a in alignments:
+                gapped_start = ungapped_to_gapped[a.ref_start]
+                if a.ref_end <= ungapped_len:  # if we're not spanning the circular gap
+                    gapped_end = ungapped_to_gapped[a.ref_end]
+                    if range_overlap(chunk_start, chunk_end, gapped_start, gapped_end):
+                        chunk.read_names.add(a.query_name)
+                else:  # if we are spanning the circular gap
+                    gapped_end = ungapped_to_gapped[a.ref_end - ungapped_len]
+                    if range_overlap(chunk_start, chunk_end, gapped_start, gapped_len) or \
+                            range_overlap(chunk_start, chunk_end, 0, gapped_end):
+                        chunk.read_names.add(a.query_name)
+            completed += 1
+            log(f'\rGathering reads for chunks: {completed:,} / {different_chunk_count:,}', end='')
+        chunk_start = chunk_end
+    assert chunk_start == len(consensus_seq_with_gaps)
+    log('\n')
+
+
+def make_ungapped_pos_to_gapped_pos_dict(consensus_seq_with_gaps, consensus_seq_without_gaps):
+    ungapped_to_gapped = {}
+    ungapped_pos = 0
+    for i, base in enumerate(consensus_seq_with_gaps):
+        ungapped_to_gapped[ungapped_pos] = i
+        if base != '-':
+            ungapped_pos += 1
+    assert ungapped_pos == len(consensus_seq_without_gaps)
+    return ungapped_to_gapped
+
+
+def get_best_alignment_per_read(alignments):
+    alignments_per_read = collections.defaultdict(list)
+    for a in alignments:
+        alignments_per_read[a.query_name].append(a)
+    best_alignments = []
+    for read_name, alignments in alignments_per_read.items():
+        alignments = sorted(alignments, key=lambda x: x.alignment_score, reverse=True)
+        best_alignments.append(alignments[0])
+    return best_alignments
+
+
+def choose_best_chunk_options(chunks):
+    for i, chunk in enumerate(chunks):
+        pass
+    # TODO
+    # TODO
+    # TODO
+    # TODO
+    # TODO
+    # TODO
+    # TODO
+    # TODO
+    # TODO
+    # TODO
 
 
 def sanity_check_chunks(chunks, msa_length):
@@ -155,7 +234,9 @@ def combine_chunks(chunks, combine_size):
             else:
                 new_chunks.append(chunk)
 
-    log(f'{len(new_chunks):,}')
+    same_count = len([c for c in new_chunks if c.type == 'same'])
+    different_count = len([c for c in new_chunks if c.type == 'different'])
+    log(f'{len(new_chunks):,} ({same_count:,} same, {different_count:,} different)')
     return new_chunks
 
 
@@ -166,8 +247,9 @@ class Chunk(object):
     """
     def __init__(self):
         self.type = None  # will be either 'same' or 'different'
-        self.seq = None   # will hold the sequence for a 'same' chunk
+        self.seq = None  # will hold the sequence for a 'same' chunk
         self.seqs = None  # will hold the multiple alternative sequences for a 'different' chunk
+        self.read_names = set()  # will hold read names relevant for assessing this chunk
 
     def add_bases(self, bases):
         assert self.can_add_bases(bases)
@@ -293,6 +375,13 @@ def hamming_distance(s1, s2):
             dist += 1
     return dist
 
+
+def save_chunks_as_graph(chunks, graph_filename):
+    pass
+    # TODO
+    # TODO
+    # TODO
+    # TODO
 
 
 

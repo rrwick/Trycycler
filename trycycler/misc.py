@@ -227,3 +227,10 @@ def count_substrings(s, substring):
         if s[i:i+substring_size] == substring:
             count+=1
     return count
+
+
+def range_overlap(x1, x2, y1, y2):
+    """
+    Returns true if the range (x1, x2) overlaps with the range (y1, y2).
+    """
+    return x1 < y2 and y1 < x2

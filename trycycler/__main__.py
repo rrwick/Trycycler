@@ -199,8 +199,11 @@ def consensus_subparser(subparsers):
     setting_args.add_argument('--linear', action='store_true',
                               help='The input contigs are not circular (default: assume the input '
                                    'contigs are circular)')
-    setting_args.add_argument('--plot_qual', action='store_true',
-                              help='Save plots of the per-base quality across the contigs')
+    setting_args.add_argument('--min_aligned_len', type=int, default=1000,
+                              help='Do not consider reads with less than this many bases aligned')
+    setting_args.add_argument('--min_read_cov', type=int, default=90.0,
+                              help='Do not consider reads with less than this percentages of '
+                                   'their length covered by alignments')
     setting_args.add_argument('-t', '--threads', type=int, default=get_default_thread_count(),
                               help='Number of threads to use for alignment')
 
