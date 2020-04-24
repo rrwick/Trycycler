@@ -17,49 +17,116 @@ If not, see <http://www.gnu.org/licenses/>.
 import trycycler.consensus
 
 
-def test_get_consensus_seq_1():
-    """
-    Sequence A is always better and becomes the consensus.
-    """
-    msa_seqs = {'A': 'ACG-ACTGT',
-                'B': 'ACGCAC-GT'}
-    per_base_scores = {'A': '222222222',
-                       'B': '111111111'}
-    consensus_seq = trycycler.consensus.get_consensus_seq(msa_seqs, per_base_scores)
-    assert consensus_seq == 'ACGACTGT'
+def test_partition_1():
+    msa_names = ['1', '2', '3']
+    msa_seqs = {'1': 'AAAAACAAAAAA',
+                '2': 'AAAAAGAAAAAA',
+                '3': 'AAAAATAAAAAA'}
+    msa_length = 12
+    chunks = trycycler.consensus.partition_msa(msa_seqs, msa_names, msa_length, 1)
+
+    assert len(chunks) == 3
+
+    assert chunks[0].type == 'same'
+    assert chunks[0].seq == ['A', 'A', 'A', 'A', 'A']
+
+    assert chunks[1].type == 'different'
+    assert chunks[1].seqs == {'1': ['C'], '2': ['G'], '3': ['T']}
+
+    assert chunks[2].type == 'same'
+    assert chunks[2].seq == ['A', 'A', 'A', 'A', 'A', 'A']
 
 
-def test_get_consensus_seq_2():
-    """
-    Sequence B is always better and becomes the consensus.
-    """
-    msa_seqs = {'A': 'ACG-ACTGT',
-                'B': 'ACGCAC-GT'}
-    per_base_scores = {'A': '111111111',
-                       'B': '222222222'}
-    consensus_seq = trycycler.consensus.get_consensus_seq(msa_seqs, per_base_scores)
-    assert consensus_seq == 'ACGCACGT'
+def test_partition_2():
+    msa_names = ['1', '2', '3']
+    msa_seqs = {'1': 'AAAAACAACAAAA',
+                '2': 'AAAAAGAAGAAAA',
+                '3': 'AAAAATAATAAAA'}
+    msa_length = 13
+    chunks = trycycler.consensus.partition_msa(msa_seqs, msa_names, msa_length, 1)
+
+    assert len(chunks) == 5
+
+    assert chunks[0].type == 'same'
+    assert chunks[0].seq == ['A', 'A', 'A', 'A', 'A']
+
+    assert chunks[1].type == 'different'
+    assert chunks[1].seqs == {'1': ['C'], '2': ['G'], '3': ['T']}
+
+    assert chunks[2].type == 'same'
+    assert chunks[2].seq == ['A', 'A']
+
+    assert chunks[3].type == 'different'
+    assert chunks[3].seqs == {'1': ['C'], '2': ['G'], '3': ['T']}
+
+    assert chunks[4].type == 'same'
+    assert chunks[4].seq == ['A', 'A', 'A', 'A']
 
 
-def test_get_consensus_seq_3():
-    """
-    Consensus is a blend of A and B (preferring deletions).
-    """
-    msa_seqs = {'A': 'ACG-ACTGT',
-                'B': 'ACGCAC-GT'}
-    per_base_scores = {'A': '222221111',
-                       'B': '111112222'}
-    consensus_seq = trycycler.consensus.get_consensus_seq(msa_seqs, per_base_scores)
-    assert consensus_seq == 'ACGACGT'
+def test_partition_3():
+    msa_names = ['1', '2', '3']
+    msa_seqs = {'1': 'AAAAACAACAAAA',
+                '2': 'AAAAAGAAGAAAA',
+                '3': 'AAAAATAATAAAA'}
+    msa_length = 13
+    chunks = trycycler.consensus.partition_msa(msa_seqs, msa_names, msa_length, 2)
+
+    assert len(chunks) == 3
+
+    assert chunks[0].type == 'same'
+    assert chunks[0].seq == ['A', 'A', 'A', 'A', 'A']
+
+    assert chunks[1].type == 'different'
+    assert chunks[1].seqs == {'1': ['C', 'A', 'A', 'C'],
+                              '2': ['G', 'A', 'A', 'G'],
+                              '3': ['T', 'A', 'A', 'T']}
+
+    assert chunks[2].type == 'same'
+    assert chunks[2].seq == ['A', 'A', 'A', 'A']
 
 
-def test_get_consensus_seq_4():
+def test_get_best_seq_1():
     """
-    Consensus is a blend of A and B (preferring insertions).
+    Tests get_best_seq() on a 'same' chunk: should just return the sequence.
     """
-    msa_seqs = {'A': 'ACG-ACTGT',
-                'B': 'ACGCAC-GT'}
-    per_base_scores = {'A': '111112222',
-                       'B': '222221111'}
-    consensus_seq = trycycler.consensus.get_consensus_seq(msa_seqs, per_base_scores)
-    assert consensus_seq == 'ACGCACTGT'
+    c = trycycler.consensus.Chunk()
+    c.add_bases({'1': 'A', '2': 'A', '3': 'A'})
+    c.add_bases({'1': 'A', '2': 'A', '3': 'A'})
+    c.add_bases({'1': 'A', '2': 'A', '3': 'A'})
+    assert c.get_best_seq() == 'AAA'
+
+
+def test_get_best_seq_2():
+    """
+    Tests get_best_seq() on simple 'different' chunk with a clear winner:
+    AAA, AAA and CCC
+    """
+    c = trycycler.consensus.Chunk()
+    c.add_bases({'1': 'A', '2': 'A', '3': 'C'})
+    c.add_bases({'1': 'A', '2': 'A', '3': 'C'})
+    c.add_bases({'1': 'A', '2': 'A', '3': 'C'})
+    assert c.get_best_seq() == 'AAA'
+
+
+def test_get_best_seq_3():
+    """
+    Tests get_best_seq() on 'different' chunk with a tie that can be broken by Hamming distance:
+    AAA, AAA, CCC, CCC, CCT
+    """
+    c = trycycler.consensus.Chunk()
+    c.add_bases({'1': 'A', '2': 'A', '3': 'C', '4': 'C', '5': 'C'})
+    c.add_bases({'1': 'A', '2': 'A', '3': 'C', '4': 'C', '5': 'C'})
+    c.add_bases({'1': 'A', '2': 'A', '3': 'C', '4': 'C', '5': 'T'})
+    assert c.get_best_seq() == 'CCC'
+
+
+def test_get_best_seq_4():
+    """
+    Tests get_best_seq() on 'different' chunk with a tie that cannot be broken by Hamming distance:
+    AAA, AAA, CCC, CCC, TTT
+    """
+    c = trycycler.consensus.Chunk()
+    c.add_bases({'1': 'A', '2': 'A', '3': 'C', '4': 'C', '5': 'T'})
+    c.add_bases({'1': 'A', '2': 'A', '3': 'C', '4': 'C', '5': 'T'})
+    c.add_bases({'1': 'A', '2': 'A', '3': 'C', '4': 'C', '5': 'T'})
+    assert c.get_best_seq() == 'AAA'

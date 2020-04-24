@@ -13,13 +13,12 @@ If not, see <http://www.gnu.org/licenses/>.
 
 import collections
 import random
-import string
 import sys
 
-from .base_scores import get_per_base_scores, add_indels_to_per_base_scores
 from .log import log, section_header, explanation
 from .misc import get_sequence_file_type, load_fasta, get_fastq_stats
 from .software import check_minimap2
+from . import settings
 
 
 def consensus(args):
@@ -27,21 +26,36 @@ def consensus(args):
     check_inputs_and_requirements(args)
 
     seqs, seq_names, seq_lengths = load_seqs(args.cluster_dir)
-    msa_seqs, msa_names, msa_lengths = load_msa(args.cluster_dir)
-    sanity_check_msa(seqs, seq_names, seq_lengths, msa_seqs, msa_names, msa_lengths)
+    msa_seqs, msa_names, msa_length = load_msa(args.cluster_dir)
+    sanity_check_msa(seqs, seq_names, seq_lengths, msa_seqs, msa_names, msa_length)
+
+    chunks = partition_msa(msa_seqs, msa_names, msa_length, settings.CHUNK_COMBINE_SIZE)
+
+
+
+
+
+
+
+    section_header('Saving initial consensus')
 
     circular = not args.linear
-    per_base_scores, plot_max = get_per_base_scores(seqs, args.cluster_dir, circular,
-                                                    args.threads, args.plot_qual)
-    per_base_scores = add_indels_to_per_base_scores(msa_seqs, per_base_scores)
-    consensus_seq_with_gaps, consensus_seq_without_gaps = \
-        get_consensus_seq(msa_seqs, per_base_scores)
+
+    consensus_seq_with_gaps = ''.join([c.get_best_seq() for c in chunks])
+    consensus_seq_without_gaps = consensus_seq_with_gaps.replace('-', '')
+
     save_seqs_to_fasta({args.cluster_dir.name + '_consensus': consensus_seq_with_gaps},
-                       args.cluster_dir / '5_consensus_with_gaps.fasta')
+                       args.cluster_dir / '5_consensus_with_gaps.fasta', extra_newline=False)
     save_seqs_to_fasta({args.cluster_dir.name + '_consensus': consensus_seq_without_gaps},
                        args.cluster_dir / '6_consensus.fasta')
-    get_per_base_scores({'consensus': consensus_seq_without_gaps}, args.cluster_dir, circular,
-                        args.threads, args.plot_qual, plot_max, consensus=True)
+
+
+
+
+
+
+
+
 
 
 def welcome_message():
@@ -58,15 +72,251 @@ def check_inputs_and_requirements(args):
     check_required_software()
 
 
-def load_contig_sequences(filenames):
-    contig_seqs, fasta_names = {}, {}
-    for i, f in enumerate(filenames):
-        letter = string.ascii_uppercase[i]
-        seqs = load_fasta(f)
-        assert len(seqs) == 1
-        contig_seqs[letter] = seqs[0][1]
-        fasta_names[letter] = f
-    return contig_seqs, fasta_names
+def partition_msa(msa_seqs, seq_names, msa_length, combine_size):
+    section_header('Partitioning MSA')
+    explanation('The multiple sequence alignment is now partitioned into chunks, where the '
+                'sequence is all in agreement ("same" chunks) or not ("different" chunk).')
+
+    chunks, chunk_count = [], 0
+    current_chunk = Chunk()
+
+    for i in range(msa_length):
+        bases = {n: msa_seqs[n][i] for n in seq_names}
+        if not current_chunk.can_add_bases(bases):
+            chunks.append(current_chunk)
+            chunk_count += 1
+            if chunk_count % 100 == 0:
+                log(f'\rchunks: {chunk_count:,}', end='')
+            current_chunk = Chunk()
+        current_chunk.add_bases(bases)
+
+    if not current_chunk.is_empty():
+        chunks.append(current_chunk)
+        chunk_count += 1
+
+    log(f'\rchunks: {chunk_count:,}', end='')
+    log()
+
+    sanity_check_chunks(chunks, msa_length)
+    chunks = combine_chunks(chunks, combine_size)
+    sanity_check_chunks(chunks, msa_length)
+    log()
+
+    return chunks
+
+
+def sanity_check_chunks(chunks, msa_length):
+    """
+    Makes sure that chunks alternate in type: same, different, same, different, etc.
+    """
+    total_length = 0
+    for i, chunk in enumerate(chunks):
+        assert chunk.type is not None
+        if i > 0:
+            prev_chunk = chunks[i-1]
+            if chunk.type == 'same':
+                assert prev_chunk.type == 'different'
+            elif chunk.type == 'different':
+                assert prev_chunk.type == 'same'
+            else:
+                assert False
+        total_length += chunk.get_length()
+    assert total_length == msa_length
+
+
+def combine_chunks(chunks, combine_size):
+    """
+    This function combines chunks when there is a very small 'same' chunk between two 'different'
+    chunks.
+    """
+    log('combining small chunks: ', end='')
+    combined_chunks = []
+    for i, chunk in enumerate(chunks):
+        if i == 0 or chunk.type == 'different':
+            combined_chunks.append(chunk)
+        else:
+            assert chunk.type == 'same'
+            assert combined_chunks[-1].type == 'different'
+            if chunk.get_length() <= combine_size:
+                combined_chunks[-1].add_one_seq_to_seqs(chunk.seq)
+            else:
+                combined_chunks.append(chunk)
+
+    # We are now in a position where two adjacent chunks might both be 'different' chunks, so
+    # we need to merge them together.
+    new_chunks = []
+    for i, chunk in enumerate(combined_chunks):
+        if i == 0 or chunk.type == 'same':
+            new_chunks.append(chunk)
+        else:
+            assert chunk.type == 'different'
+            if new_chunks[-1].type == 'different':
+                new_chunks[-1].add_multiple_seqs_to_seqs(chunk.seqs)
+            else:
+                new_chunks.append(chunk)
+
+    log(f'{len(new_chunks):,}')
+    return new_chunks
+
+
+class Chunk(object):
+    """
+    This class holds a chunk of the MSA, which can either be a 'same' chunk (where all sequences
+    agree) or a 'different' chunk (where there is at least one difference).
+    """
+    def __init__(self):
+        self.type = None  # will be either 'same' or 'different'
+        self.seq = None   # will hold the sequence for a 'same' chunk
+        self.seqs = None  # will hold the multiple alternative sequences for a 'different' chunk
+
+    def add_bases(self, bases):
+        assert self.can_add_bases(bases)
+
+        # If this is a new chunk, we'll set its type now.
+        if self.type is None:
+            base_count = len(set(bases.values()))
+            if base_count == 1:
+                self.type = 'same'
+                self.seq = []
+            else:
+                self.type = 'different'
+                self.seqs = {n: [] for n in bases.keys()}
+
+        if self.type == 'same':
+            base = list(bases.values())[0]
+            self.seq.append(base)
+
+        else:
+            assert self.type == 'different'
+            for name, base in bases.items():
+                self.seqs[name].append(base)
+
+    def can_add_bases(self, bases):
+        """
+        Tests to see whether the given bases are incompatible with the current chunk type.
+        """
+        if self.type is None:
+            return True
+        base_count = len(set(bases.values()))
+        if self.type == 'same' and base_count == 1:
+            return True
+        if self.type == 'different' and base_count > 1:
+            return True
+        return False
+
+    def is_empty(self):
+        return self.type is None
+
+    def get_length(self):
+        if self.type is None:
+            return 0
+        elif self.type == 'same':
+            return len(self.seq)
+        elif self.type == 'different':
+            lengths = set(len(seq) for seq in self.seqs.values())
+            assert len(lengths) == 1  # all seqs should be the same length
+            return list(lengths)[0]
+        else:
+            assert False
+
+    def __str__(self):
+        if self.type is None:
+            return ''
+        elif self.type == 'same':
+            return ''.join(self.seq)
+        elif self.type == 'different':
+            seq_lines = []
+            longest_name = max(len(name) for name in self.seqs.keys())
+            for name, seq in self.seqs.items():
+                seq = ''.join(seq)
+                seq_lines.append(f'{name.rjust(longest_name)}: {seq}')
+            return '\n'.join(seq_lines)
+
+    def add_one_seq_to_seqs(self, additional_seq):
+        assert self.type == 'different'
+        new_seqs = {}
+        for name, seq in self.seqs.items():
+            new_seqs[name] = seq + additional_seq
+        self.seqs = new_seqs
+
+    def add_multiple_seqs_to_seqs(self, additional_seqs):
+        assert self.type == 'different'
+        new_seqs = {}
+        for name, seq in self.seqs.items():
+            new_seqs[name] = seq + additional_seqs[name]
+        self.seqs = new_seqs
+
+    def get_best_seq(self):
+        """
+        Returns the chunk's 'best' sequence as a string. For 'same' chunks, this simply means the
+        chunk sequence. For 'different' chunks, this is the most common sequence. If there is a tie
+        for the most common sequence, then we choose whichever sequence has the lowest total
+        distance to the other sequences.
+        """
+        if self.type is None:
+            return ''
+        elif self.type == 'same':
+            return ''.join(self.seq)
+        else:
+            assert self.type == 'different'
+            options = [''.join(seq) for seq in self.seqs.values()]
+            option_counts = list(collections.Counter(options).items())
+            assert len(option_counts) > 1  # a 'different' chunk has multiple options by definition
+            option_counts = sorted(option_counts, key=lambda x: x[1], reverse=True)
+            best_count = option_counts[0][1]
+            best_options = [x[0] for x in option_counts if x[1] == best_count]
+
+            # If there is a clear winner, then we return that.
+            if len(best_options) == 1:
+                return best_options[0]
+
+            # If there are multiple sequences which tie for the best, then we choose the one with
+            # the smallest total Hamming distance to the other options.
+            hamming_distances = {x: 0 for x in best_options}
+            for x in best_options:
+                for y in options:
+                    hamming_distances[x] += hamming_distance(x, y)
+            hamming_distances = sorted(hamming_distances.items(), key=lambda x: x[1])
+            best_distance = hamming_distances[0][1]
+            best_options = [x[0] for x in hamming_distances if x[1] == best_distance]
+            if len(best_options) == 1:
+                return best_options[0]
+
+            # If there are still multiple sequences, we return the lexicographically first one.
+            return sorted(best_options)[0]
+
+
+def hamming_distance(s1, s2):
+    dist = 0
+    for i in range(len(s1)):
+        if s1[i] != s2[i]:
+            dist += 1
+    return dist
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
 
 
 def check_input_reads(cluster_dir):
@@ -137,97 +387,27 @@ def load_msa(cluster_dir):
     seqs = dict(load_fasta(filename))
     seq_names = sorted(seqs.keys())
     seq_lengths = {name: len(seq) for name, seq in seqs.items()}
-    return seqs, seq_names, seq_lengths
+
+    seq_length_set = set(seq_lengths.values())
+    assert len(seq_length_set) == 1
+    msa_length = list(seq_length_set)[0]
+
+    return seqs, seq_names, msa_length
 
 
-def sanity_check_msa(seqs, seq_names, seq_lengths, msa_seqs, msa_names, msa_lengths):
+def sanity_check_msa(seqs, seq_names, seq_lengths, msa_seqs, msa_names, msa_length):
     assert seq_names == msa_names
-    msa_length = msa_lengths[seq_names[0]]
     for n in seq_names:
-        assert msa_lengths[n] == msa_length
-        assert seq_lengths[n] <= msa_lengths[n]
+        assert seq_lengths[n] <= msa_length
         assert seqs[n] == msa_seqs[n].replace('-', '')
 
 
-def save_seqs_to_fasta(seqs, filename):
+def save_seqs_to_fasta(seqs, filename, extra_newline=True):
     seq_word = 'sequence' if len(seqs) == 1 else 'sequences'
     log(f'Saving {seq_word} to file: {filename}')
     with open(filename, 'wt') as fasta:
         for name, seq in seqs.items():
             fasta.write(f'>{name}\n')
             fasta.write(f'{seq}\n')
-    log()
-
-
-def get_consensus_seq(msa_seqs, per_base_scores):
-    section_header('Consensus sequence')
-    explanation('Trycycler now builds the consensus sequence by switching between contigs '
-                'to stay on whichever has the highest local score.')
-
-    seq_names = list(msa_seqs.keys())
-    msa_length = len(msa_seqs[seq_names[0]])
-
-    # Sanity check!
-    for n in seq_names:
-        assert len(msa_seqs[n]) == msa_length == len(per_base_scores[n])
-
-    counts = {n: 0 for n in seq_names}  # number of bases from each sequence in the consensus
-    consensus_seq = []
-
-    log('Consensus sequence composition:')
-    for i in range(msa_length):
-        best_base, best_seq_name = get_best_base(msa_seqs, per_base_scores, seq_names, i)
-        consensus_seq.append(best_base)
-        counts[best_seq_name] += 1
-        if i % 1000 == 0:
-            log_proportion(counts)
-    log_proportion(counts)
-    log('\n')
-
-    # Sanity check: each base in the consensus sequence should contribute to the counts.
-    assert sum(counts.values()) == len(consensus_seq)
-
-    consensus_seq_with_gaps = ''.join(consensus_seq)
-    consensus_seq_without_gaps = consensus_seq_with_gaps.replace('-', '')
-
-    log(f'Consensus sequence length: {len(consensus_seq_without_gaps):,} bp')
-    log()
-    return consensus_seq_with_gaps, consensus_seq_without_gaps
-
-
-def log_proportion(counts):
-    total = sum(counts.values())
-    proportions = []
-    for seq_name, count in counts.items():
-        proportion = 100.0 * count / total
-        proportions.append(f'{seq_name}: {proportion:.2f}%')
-    log('\r  ' + ', '.join(proportions), end='    ')
-
-
-def get_best_base(msa_seqs, per_base_scores, seq_names, i):
-    # Get the base with the highest total score. This will probably be the most common base at that
-    # position in the MSA.
-    base_scores = collections.defaultdict(int)
-    for name in seq_names:
-        base = msa_seqs[name][i]
-        score = per_base_scores[name][i]
-        base_scores[base] += score
-    best_base = max(base_scores, key=base_scores.get)
-
-    # Get the sequence name with the best base and the best score. If multiple sequences tie, then
-    # we choose one at random.
-    best_seq_names, best_score = [], None
-    for name in seq_names:
-        base = msa_seqs[name][i]
-        if base == best_base:
-            score = per_base_scores[name][i]
-            if best_score is None or score > best_score:
-                best_seq_names = [name]
-                best_score = score
-            elif score == best_score:
-                best_seq_names.append(name)
-    assert best_score is not None
-    assert len(best_seq_names) >= 1
-    best_seq_name = random.choice(best_seq_names)
-
-    return best_base, best_seq_name
+    if extra_newline:
+        log()
