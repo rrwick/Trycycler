@@ -92,6 +92,12 @@ def iterate_fastq(filename):
             yield name, header, sequence, qualities
 
 
+def load_fastq_as_dict(cluster_dir):
+    read_filename = cluster_dir / '4_reads.fastq'
+    reads = {name: (header, seq, qual) for name, header, seq, qual in iterate_fastq(read_filename)}
+    return reads
+
+
 def get_fastq_stats(filename):
     seq_lengths = [len(s) for _, _, s, _ in iterate_fastq(filename)]
     read_count = len(seq_lengths)

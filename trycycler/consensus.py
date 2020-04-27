@@ -12,11 +12,14 @@ If not, see <http://www.gnu.org/licenses/>.
 """
 
 import collections
+import pathlib
 import sys
+import tempfile
 
 from .alignment import align_reads_to_seq
 from .log import log, section_header, explanation
-from .misc import get_sequence_file_type, load_fasta, get_fastq_stats, range_overlap
+from .misc import get_sequence_file_type, load_fasta, get_fastq_stats, range_overlap, \
+    load_fastq_as_dict
 from .software import check_minimap2
 from . import settings
 
@@ -39,7 +42,11 @@ def consensus(args):
     circular = not args.linear
     index_reads(args.cluster_dir, chunks, consensus_seq_with_gaps, consensus_seq_without_gaps,
                 circular, args.threads, args.min_read_cov, args.min_aligned_len)
-    choose_best_chunk_options(chunks)
+    choose_best_chunk_options(chunks, args.cluster_dir, args.threads)
+
+    final_consensus_seq = ''.join([c.best_seq for c in chunks]).replace('-', '')
+    save_seqs_to_fasta({args.cluster_dir.name + '_consensus': final_consensus_seq},
+                       args.cluster_dir / '7_final_consensus.fasta')
 
 
 def welcome_message():
@@ -182,19 +189,69 @@ def get_best_alignment_per_read(alignments):
     return best_alignments
 
 
-def choose_best_chunk_options(chunks):
+def choose_best_chunk_options(chunks, cluster_dir, threads):
+    reads = load_fastq_as_dict(cluster_dir)
+
+    new_best_seqs = {}
+    kept, changed = 0, 0
+
     for i, chunk in enumerate(chunks):
-        pass
-    # TODO
-    # TODO
-    # TODO
-    # TODO
-    # TODO
-    # TODO
-    # TODO
-    # TODO
-    # TODO
-    # TODO
+        if chunk.type == 'same':
+            continue
+        assert chunk.type == 'different'
+        assert len(chunk.seqs) > 1
+
+        log(f'chunk {i+1}')  # TODO: make this a verbose option
+
+        chunk_reads = [reads[r] for r in sorted(chunk.read_names)]
+
+        with tempfile.TemporaryDirectory() as temp_dir:
+            temp_dir = pathlib.Path(temp_dir)
+
+            # Save the reads relevant to this chunk to a file.
+            fastq_filename = temp_dir / 'chunk_reads.fastq'
+            with open(fastq_filename, 'wt') as fastq_file:
+                for header, seq, qual in chunk_reads:
+                    fastq_file.write(f'@{header}\n{seq}\n+\n{qual}\n')
+
+            option_scores = {}
+            option_seqs = sorted(set(''.join(s) for s in chunk.seqs.values()))
+            for option_seq in option_seqs:
+                log(f'  {option_seq}: ', end='')  # TODO: make this a verbose option
+
+                # Produce a version of the consensus sequence with this alternative.
+                option_consensus = []
+                for j, c in enumerate(chunks):
+                    if i == j:
+                        option_consensus.append(option_seq)
+                    else:  # for most chunks, we just use the initial consensus option
+                        option_consensus.append(c.best_seq)
+                option_consensus = ''.join(option_consensus).replace('-', '')
+
+                # Align the reads to this option.
+                alignments = align_reads_to_seq(fastq_filename, option_consensus, threads)
+                score_sum = sum(a.alignment_score for a in alignments)
+                log(f'{score_sum:,}')  # TODO: make this a verbose option
+                option_scores[option_seq] = score_sum
+
+            best_seq = max(option_scores, key=option_scores.get)
+            new_best_seqs[i] = best_seq
+            if chunk.best_seq == best_seq:
+                kept += 1
+                log('  same as most common')
+            else:
+                changed += 1
+                log('  different to most common')
+        log()  # TODO: make this a verbose option
+
+    for i, chunk in enumerate(chunks):
+        if chunk.type == 'same':
+            continue
+        assert chunk.type == 'different'
+        chunk.best_seq = new_best_seqs[i]
+
+    log(f'chunks where sequence is still the most common:        {kept:,}')
+    log(f'chunks where sequence changed to a less-common option: {changed:,}')
 
 
 def sanity_check_chunks(chunks, msa_length):
@@ -391,30 +448,6 @@ def hamming_distance(s1, s2):
         if s1[i] != s2[i]:
             dist += 1
     return dist
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
 
 
 def check_input_reads(cluster_dir):
