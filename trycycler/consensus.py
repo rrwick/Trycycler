@@ -30,10 +30,9 @@ def consensus(args):
     sanity_check_msa(seqs, seq_names, seq_lengths, msa_seqs, msa_names, msa_length)
 
     chunks = partition_msa(msa_seqs, msa_names, msa_length, settings.CHUNK_COMBINE_SIZE)
-    save_chunks_as_graph(chunks, '5_chunked_sequence.gfa')
+    save_chunks_to_gfa(chunks, args.cluster_dir / '5_chunked_sequence.gfa', len(msa_names))
 
-    consensus_seq_with_gaps = ''.join([c.get_best_seq() for c in chunks])
-    consensus_seq_without_gaps = consensus_seq_with_gaps.replace('-', '')
+    consensus_seq_with_gaps, consensus_seq_without_gaps = make_initial_consensus(chunks)
     save_seqs_to_fasta({args.cluster_dir.name + '_consensus': consensus_seq_without_gaps},
                        args.cluster_dir / '6_initial_consensus.fasta')
 
@@ -60,7 +59,7 @@ def check_inputs_and_requirements(args):
 def partition_msa(msa_seqs, seq_names, msa_length, combine_size):
     section_header('Partitioning MSA')
     explanation('The multiple sequence alignment is now partitioned into chunks, where the '
-                'sequence is all in agreement ("same" chunks) or not ("different" chunk).')
+                'sequence is all in agreement ("same" chunks) or not ("different" chunks).')
 
     chunks, chunk_count = [], 0
     current_chunk = Chunk()
@@ -90,6 +89,20 @@ def partition_msa(msa_seqs, seq_names, msa_length, combine_size):
     log()
 
     return chunks
+
+
+def make_initial_consensus(chunks):
+    log('Producing an initial consensus using the most common sequence for each chunk:')
+    total_length = 0
+    for i, chunk in enumerate(chunks):
+        chunk.set_best_seq_as_most_common()
+        assert chunk.best_seq is not None
+        total_length += len(chunk.best_seq.replace('-', ''))
+        log(f'\r  consensus length: {total_length:,} bp', end='')
+    log('\n')
+    consensus_seq_with_gaps = ''.join([c.best_seq for c in chunks])
+    consensus_seq_without_gaps = consensus_seq_with_gaps.replace('-', '')
+    return consensus_seq_with_gaps, consensus_seq_without_gaps
 
 
 def index_reads(cluster_dir, chunks, consensus_seq_with_gaps, consensus_seq_without_gaps,
@@ -250,6 +263,7 @@ class Chunk(object):
         self.seq = None  # will hold the sequence for a 'same' chunk
         self.seqs = None  # will hold the multiple alternative sequences for a 'different' chunk
         self.read_names = set()  # will hold read names relevant for assessing this chunk
+        self.best_seq = None
 
     def add_bases(self, bases):
         assert self.can_add_bases(bases)
@@ -328,7 +342,10 @@ class Chunk(object):
             new_seqs[name] = seq + additional_seqs[name]
         self.seqs = new_seqs
 
-    def get_best_seq(self):
+    def set_best_seq_as_most_common(self):
+        self.best_seq = self.get_most_common_seq()
+
+    def get_most_common_seq(self):
         """
         Returns the chunk's 'best' sequence as a string. For 'same' chunks, this simply means the
         chunk sequence. For 'different' chunks, this is the most common sequence. If there is a tie
@@ -374,14 +391,6 @@ def hamming_distance(s1, s2):
         if s1[i] != s2[i]:
             dist += 1
     return dist
-
-
-def save_chunks_as_graph(chunks, graph_filename):
-    pass
-    # TODO
-    # TODO
-    # TODO
-    # TODO
 
 
 
@@ -498,5 +507,51 @@ def save_seqs_to_fasta(seqs, filename, extra_newline=True):
         for name, seq in seqs.items():
             fasta.write(f'>{name}\n')
             fasta.write(f'{seq}\n')
+    if extra_newline:
+        log()
+
+
+def save_chunks_to_gfa(chunks, filename, input_count, extra_newline=True):
+    chunk_word = 'sequence' if len(chunks) == 1 else 'sequences'
+    log(f'Saving {chunk_word} to graph: {filename}')
+    with open(filename, 'wt') as gfa:
+        gfa.write('H\tVN:Z:1.0\tbn:Z:--linear --singlearr\n')  # header line with Bandage options
+        link_lines = []
+        prev_chunk_names = None
+        for i, chunk in enumerate(chunks):
+            if chunk.type == 'same':
+                assert chunk.seq is not None
+                chunk_seq = ''.join(chunk.seq)
+                chunk_name = str(i+1)
+                gfa.write(f'S\t{chunk_name}\t{chunk_seq}\tdp:f:{input_count}\n')
+                if prev_chunk_names is not None:
+                    assert len(prev_chunk_names) > 1  # same chunks are preceded by diff chunks
+                    for prev_name in prev_chunk_names:
+                        link_lines.append(f'L\t{prev_name}\t+\t{chunk_name}\t+\t0M\n')
+                prev_chunk_names = [chunk_name]
+
+            elif chunk.type == 'different':
+                assert chunk.seqs is not None
+                chunk_seq_counts = collections.defaultdict(int)
+                chunk_names = []
+                for s in chunk.seqs.values():
+                    chunk_seq_counts[''.join(s)] += 1
+                j = 1
+                for chunk_seq, count in chunk_seq_counts.items():
+                    chunk_name = f'{i+1}_{j}'
+                    chunk_names.append(chunk_name)
+                    gfa.write(f'S\t{chunk_name}\t{chunk_seq}\tdp:f:{count}\n')
+                    j += 1
+                if prev_chunk_names is not None:
+                    assert len(prev_chunk_names) == 1  # diff chunks are preceded by same chunks
+                    prev_name = prev_chunk_names[0]
+                    for chunk_name in chunk_names:
+                        link_lines.append(f'L\t{prev_name}\t+\t{chunk_name}\t+\t0M\n')
+                prev_chunk_names = chunk_names
+            else:
+                assert False
+        for link_line in link_lines:
+            gfa.write(link_line)
+
     if extra_newline:
         log()
