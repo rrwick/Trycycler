@@ -42,7 +42,7 @@ def consensus(args):
     circular = not args.linear
     index_reads(args.cluster_dir, chunks, consensus_seq_with_gaps, consensus_seq_without_gaps,
                 circular, args.threads, args.min_read_cov, args.min_aligned_len)
-    choose_best_chunk_options(chunks, args.cluster_dir, args.threads, args.verbose)
+    choose_best_chunk_options(chunks, args.cluster_dir, args.threads, args.verbose, circular)
 
     final_consensus_seq = ''.join([c.best_seq for c in chunks]).replace('-', '')
     save_seqs_to_fasta({args.cluster_dir.name + '_consensus': final_consensus_seq},
@@ -194,7 +194,7 @@ def get_best_alignment_per_read(alignments):
     return best_alignments
 
 
-def choose_best_chunk_options(chunks, cluster_dir, threads, verbose):
+def choose_best_chunk_options(chunks, cluster_dir, threads, verbose, circular):
     section_header('Choosing best options with reads')
     explanation('For each of the different chunks, Trycycler now aligns the relevant reads to '
                 'each alternative sequence. Whichever sequence gives the best read alignments '
@@ -210,7 +210,7 @@ def choose_best_chunk_options(chunks, cluster_dir, threads, verbose):
         if chunk.type == 'same':
             continue
 
-        best_seq, output_lines = choose_best_chunk_option(i, reads, chunks, threads)
+        best_seq, output_lines = choose_best_chunk_option(i, reads, chunks, threads, circular)
 
         new_best_seqs[i] = best_seq
         if chunk.best_seq == best_seq:
@@ -241,7 +241,7 @@ def choose_best_chunk_options(chunks, cluster_dir, threads, verbose):
     log()
 
 
-def choose_best_chunk_option(i, reads, chunks, threads):
+def choose_best_chunk_option(i, reads, chunks, threads, circular):
     chunk = chunks[i]
     assert chunk.type == 'different'
     assert len(chunk.seqs) > 1
@@ -260,24 +260,67 @@ def choose_best_chunk_option(i, reads, chunks, threads):
 
         option_scores = {}
         option_seqs = sorted(set(''.join(s) for s in chunk.seqs.values()))
+
         for option_seq in option_seqs:
-            # Produce a version of the consensus sequence with this alternative.
-            option_consensus = []
-            for j, c in enumerate(chunks):
-                if i == j:
-                    option_consensus.append(option_seq)
-                else:  # for most chunks, we just use the initial consensus option
-                    option_consensus.append(c.best_seq)
-            option_consensus = ''.join(option_consensus).replace('-', '')
+            test_sequence = build_test_sequence(i, chunks, option_seq, circular)
 
             # Align the reads to this option.
-            alignments = align_reads_to_seq(fastq_filename, option_consensus, threads)
+            alignments = align_reads_to_seq(fastq_filename, test_sequence, threads)
             score_sum = sum(a.alignment_score for a in alignments)
             output_lines.append(f'  {option_seq}: {score_sum:,}')
             option_scores[option_seq] = score_sum
 
     best_seq = max(option_scores, key=option_scores.get)
     return best_seq, output_lines
+
+
+def build_test_sequence(i, chunks, option_seq, circular):
+    """
+    Builds a piece of the consensus sequence with the to-be-tested option in the middle.
+    """
+    chunk_count = len(chunks)
+    test_sequence = [option_seq]
+    included_indices = {i}
+
+    # Build forward.
+    j = i
+    forward_length = 0
+    while True:
+        j += 1
+        if j in included_indices:  # we've come full circle
+            break
+        if j == chunk_count:
+            if not circular:
+                break
+            else:
+                j = 0
+        new_seq = chunks[j].best_seq
+        test_sequence.append(new_seq)
+        forward_length += len(new_seq)
+        included_indices.add(j)
+        if forward_length >= settings.CHUNK_TEST_MARGIN:
+            break
+
+    # Build backward.
+    j = i
+    reverse_length = 0
+    while True:
+        j -= 1
+        if j in included_indices:  # we've come full circle
+            break
+        if j == -1:
+            if not circular:
+                break
+            else:
+                j = chunk_count - 1
+        new_seq = chunks[j].best_seq
+        test_sequence.insert(0, new_seq)  # add to front
+        reverse_length += len(new_seq)
+        included_indices.add(j)
+        if reverse_length >= settings.CHUNK_TEST_MARGIN:
+            break
+
+    return ''.join(test_sequence).replace('-', '')
 
 
 def sanity_check_chunks(chunks, msa_length):
