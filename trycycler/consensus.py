@@ -27,19 +27,20 @@ from . import settings
 def consensus(args):
     welcome_message()
     check_inputs_and_requirements(args)
+    circular = not args.linear
 
     seqs, seq_names, seq_lengths = load_seqs(args.cluster_dir)
     msa_seqs, msa_names, msa_length = load_msa(args.cluster_dir)
     sanity_check_msa(seqs, seq_names, seq_lengths, msa_seqs, msa_names, msa_length)
 
     chunks = partition_msa(msa_seqs, msa_names, msa_length, settings.CHUNK_COMBINE_SIZE)
-    save_chunks_to_gfa(chunks, args.cluster_dir / '5_chunked_sequence.gfa', len(msa_names))
+    save_chunks_to_gfa(chunks, args.cluster_dir / '5_chunked_sequence.gfa', len(msa_names),
+                       circular)
 
     consensus_seq_with_gaps, consensus_seq_without_gaps = make_initial_consensus(chunks)
     save_seqs_to_fasta({args.cluster_dir.name + '_consensus': consensus_seq_without_gaps},
                        args.cluster_dir / '6_initial_consensus.fasta')
 
-    circular = not args.linear
     index_reads(args.cluster_dir, chunks, consensus_seq_with_gaps, consensus_seq_without_gaps,
                 circular, args.threads, args.min_read_cov, args.min_aligned_len)
     choose_best_chunk_options(chunks, args.cluster_dir, args.threads, args.verbose, circular)
@@ -613,18 +614,23 @@ def save_seqs_to_fasta(seqs, filename, extra_newline=True):
         log()
 
 
-def save_chunks_to_gfa(chunks, filename, input_count, extra_newline=True):
+def save_chunks_to_gfa(chunks, filename, input_count, circular, extra_newline=True):
     chunk_word = 'sequence' if len(chunks) == 1 else 'sequences'
     log(f'Saving {chunk_word} to graph: {filename}')
     with open(filename, 'wt') as gfa:
         gfa.write('H\tVN:Z:1.0\tbn:Z:--linear --singlearr\n')  # header line with Bandage options
         link_lines = []
         prev_chunk_names = None
+        first_chunk_names, last_chunk_names = [], []
         for i, chunk in enumerate(chunks):
             if chunk.type == 'same':
                 assert chunk.seq is not None
                 chunk_seq = ''.join(chunk.seq)
                 chunk_name = str(i+1)
+                if i == 0:
+                    first_chunk_names.append(chunk_name)
+                if i == len(chunks) - 1:
+                    last_chunk_names.append(chunk_name)
                 gfa.write(f'S\t{chunk_name}\t{chunk_seq}\tdp:f:{input_count}\n')
                 if prev_chunk_names is not None:
                     assert len(prev_chunk_names) > 1  # same chunks are preceded by diff chunks
@@ -642,6 +648,10 @@ def save_chunks_to_gfa(chunks, filename, input_count, extra_newline=True):
                 for chunk_seq, count in chunk_seq_counts.items():
                     chunk_name = f'{i+1}_{j}'
                     chunk_names.append(chunk_name)
+                    if i == 0:
+                        first_chunk_names.append(chunk_name)
+                    if i == len(chunks) - 1:
+                        last_chunk_names.append(chunk_name)
                     gfa.write(f'S\t{chunk_name}\t{chunk_seq}\tdp:f:{count}\n')
                     j += 1
                 if prev_chunk_names is not None:
@@ -652,6 +662,10 @@ def save_chunks_to_gfa(chunks, filename, input_count, extra_newline=True):
                 prev_chunk_names = chunk_names
             else:
                 assert False
+        if circular:
+            for first_chunk_name in first_chunk_names:
+                for last_chunk_name in last_chunk_names:
+                    link_lines.append(f'L\t{last_chunk_name}\t+\t{first_chunk_name}\t+\t0M\n')
         for link_line in link_lines:
             gfa.write(link_line)
 
