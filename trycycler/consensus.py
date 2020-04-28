@@ -42,7 +42,7 @@ def consensus(args):
     circular = not args.linear
     index_reads(args.cluster_dir, chunks, consensus_seq_with_gaps, consensus_seq_without_gaps,
                 circular, args.threads, args.min_read_cov, args.min_aligned_len)
-    choose_best_chunk_options(chunks, args.cluster_dir, args.threads)
+    choose_best_chunk_options(chunks, args.cluster_dir, args.threads, args.verbose)
 
     final_consensus_seq = ''.join([c.best_seq for c in chunks]).replace('-', '')
     save_seqs_to_fasta({args.cluster_dir.name + '_consensus': final_consensus_seq},
@@ -65,8 +65,11 @@ def check_inputs_and_requirements(args):
 
 def partition_msa(msa_seqs, seq_names, msa_length, combine_size):
     section_header('Partitioning MSA')
-    explanation('The multiple sequence alignment is now partitioned into chunks, where the '
-                'sequence is all in agreement ("same" chunks) or not ("different" chunks).')
+    explanation('The multiple sequence alignment is now partitioned into chunks. Chunk where the '
+                'input contig sequences are all in agreement are called "same" chunks, and those '
+                'where the input contig sequences disagree are called "different" chunks. '
+                'Trycycler then makes an initial consensus sequence by using the most common '
+                'option for each of the different chunks.')
 
     chunks, chunk_count = [], 0
     current_chunk = Chunk()
@@ -145,7 +148,6 @@ def index_reads(cluster_dir, chunks, consensus_seq_with_gaps, consensus_seq_with
     different_chunk_count = len([c for c in chunks if c.type == 'different'])
     chunk_start = 0
     completed = 0
-    log(f'\rGathering reads for chunks: {completed:,} / {different_chunk_count:,}', end='')
     for chunk in chunks:
         chunk_end = chunk_start + chunk.get_length()
         if chunk.type == 'different':
@@ -169,11 +171,14 @@ def index_reads(cluster_dir, chunks, consensus_seq_with_gaps, consensus_seq_with
 
 def make_ungapped_pos_to_gapped_pos_dict(consensus_seq_with_gaps, consensus_seq_without_gaps):
     ungapped_to_gapped = {}
-    ungapped_pos = 0
-    for i, base in enumerate(consensus_seq_with_gaps):
-        ungapped_to_gapped[ungapped_pos] = i
+    gapped_pos, ungapped_pos = 0, 0
+    for base in consensus_seq_with_gaps:
+        ungapped_to_gapped[ungapped_pos] = gapped_pos
+        gapped_pos += 1
         if base != '-':
             ungapped_pos += 1
+    ungapped_to_gapped[ungapped_pos] = gapped_pos
+    assert gapped_pos == len(consensus_seq_with_gaps)
     assert ungapped_pos == len(consensus_seq_without_gaps)
     return ungapped_to_gapped
 
@@ -189,60 +194,39 @@ def get_best_alignment_per_read(alignments):
     return best_alignments
 
 
-def choose_best_chunk_options(chunks, cluster_dir, threads):
+def choose_best_chunk_options(chunks, cluster_dir, threads, verbose):
+    section_header('Choosing best options with reads')
+    explanation('For each of the different chunks, Trycycler now aligns the relevant reads to '
+                'each alternative sequence. Whichever sequence gives the best read alignments '
+                'is chosen as the best. The best option is likely to be the same as the most '
+                'common option but not necessarily so.')
     reads = load_fastq_as_dict(cluster_dir)
+    different_chunk_count = len([c for c in chunks if c.type == 'different'])
 
     new_best_seqs = {}
-    kept, changed = 0, 0
+    completed, kept, changed = 0, 0, 0
 
     for i, chunk in enumerate(chunks):
         if chunk.type == 'same':
             continue
-        assert chunk.type == 'different'
-        assert len(chunk.seqs) > 1
 
-        log(f'chunk {i+1}')  # TODO: make this a verbose option
+        best_seq, output_lines = choose_best_chunk_option(i, reads, chunks, threads)
 
-        chunk_reads = [reads[r] for r in sorted(chunk.read_names)]
+        new_best_seqs[i] = best_seq
+        if chunk.best_seq == best_seq:
+            kept += 1
+            output_lines.append('  same as most common')
+        else:
+            changed += 1
+            output_lines.append('  different to most common')
 
-        with tempfile.TemporaryDirectory() as temp_dir:
-            temp_dir = pathlib.Path(temp_dir)
-
-            # Save the reads relevant to this chunk to a file.
-            fastq_filename = temp_dir / 'chunk_reads.fastq'
-            with open(fastq_filename, 'wt') as fastq_file:
-                for header, seq, qual in chunk_reads:
-                    fastq_file.write(f'@{header}\n{seq}\n+\n{qual}\n')
-
-            option_scores = {}
-            option_seqs = sorted(set(''.join(s) for s in chunk.seqs.values()))
-            for option_seq in option_seqs:
-                log(f'  {option_seq}: ', end='')  # TODO: make this a verbose option
-
-                # Produce a version of the consensus sequence with this alternative.
-                option_consensus = []
-                for j, c in enumerate(chunks):
-                    if i == j:
-                        option_consensus.append(option_seq)
-                    else:  # for most chunks, we just use the initial consensus option
-                        option_consensus.append(c.best_seq)
-                option_consensus = ''.join(option_consensus).replace('-', '')
-
-                # Align the reads to this option.
-                alignments = align_reads_to_seq(fastq_filename, option_consensus, threads)
-                score_sum = sum(a.alignment_score for a in alignments)
-                log(f'{score_sum:,}')  # TODO: make this a verbose option
-                option_scores[option_seq] = score_sum
-
-            best_seq = max(option_scores, key=option_scores.get)
-            new_best_seqs[i] = best_seq
-            if chunk.best_seq == best_seq:
-                kept += 1
-                log('  same as most common')
-            else:
-                changed += 1
-                log('  different to most common')
-        log()  # TODO: make this a verbose option
+        if verbose:
+            for line in output_lines:
+                log(line)
+            log()
+        else:
+            completed += 1
+            log(f'\rProcessing chunks: {completed:,} / {different_chunk_count:,}', end='')
 
     for i, chunk in enumerate(chunks):
         if chunk.type == 'same':
@@ -250,8 +234,50 @@ def choose_best_chunk_options(chunks, cluster_dir, threads):
         assert chunk.type == 'different'
         chunk.best_seq = new_best_seqs[i]
 
+    if not verbose:
+        log('\n')
     log(f'chunks where sequence is still the most common:        {kept:,}')
     log(f'chunks where sequence changed to a less-common option: {changed:,}')
+    log()
+
+
+def choose_best_chunk_option(i, reads, chunks, threads):
+    chunk = chunks[i]
+    assert chunk.type == 'different'
+    assert len(chunk.seqs) > 1
+
+    output_lines = [f'chunk {i + 1}']
+    chunk_reads = [reads[r] for r in sorted(chunk.read_names)]
+
+    with tempfile.TemporaryDirectory() as temp_dir:
+        temp_dir = pathlib.Path(temp_dir)
+
+        # Save the reads relevant to this chunk to a file.
+        fastq_filename = temp_dir / 'chunk_reads.fastq'
+        with open(fastq_filename, 'wt') as fastq_file:
+            for header, seq, qual in chunk_reads:
+                fastq_file.write(f'@{header}\n{seq}\n+\n{qual}\n')
+
+        option_scores = {}
+        option_seqs = sorted(set(''.join(s) for s in chunk.seqs.values()))
+        for option_seq in option_seqs:
+            # Produce a version of the consensus sequence with this alternative.
+            option_consensus = []
+            for j, c in enumerate(chunks):
+                if i == j:
+                    option_consensus.append(option_seq)
+                else:  # for most chunks, we just use the initial consensus option
+                    option_consensus.append(c.best_seq)
+            option_consensus = ''.join(option_consensus).replace('-', '')
+
+            # Align the reads to this option.
+            alignments = align_reads_to_seq(fastq_filename, option_consensus, threads)
+            score_sum = sum(a.alignment_score for a in alignments)
+            output_lines.append(f'  {option_seq}: {score_sum:,}')
+            option_scores[option_seq] = score_sum
+
+    best_seq = max(option_scores, key=option_scores.get)
+    return best_seq, output_lines
 
 
 def sanity_check_chunks(chunks, msa_length):

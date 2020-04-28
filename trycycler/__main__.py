@@ -212,6 +212,8 @@ def consensus_subparser(subparsers):
                             help='Show this help message and exit')
     other_args.add_argument('--version', action='version', version='Trycycler v' + __version__,
                             help="Show program's version number and exit")
+    other_args.add_argument('--verbose', action='store_true',
+                            help='Display extra output (for debugging)')
 
 
 # TODO: parameter checking
