@@ -41,6 +41,8 @@ def consensus(args):
     save_seqs_to_fasta({args.cluster_dir.name + '_consensus': consensus_seq_without_gaps},
                        args.cluster_dir / '6_initial_consensus.fasta')
 
+    choose_which_chunks_to_assess(chunks, args.assess_indel_size)
+
     index_reads(args.cluster_dir, chunks, consensus_seq_with_gaps, consensus_seq_without_gaps,
                 circular, args.threads, args.min_read_cov, args.min_aligned_len)
     choose_best_chunk_options(chunks, args.cluster_dir, args.threads, args.verbose, circular)
@@ -68,9 +70,7 @@ def partition_msa(msa_seqs, seq_names, msa_length, combine_size):
     section_header('Partitioning MSA')
     explanation('The multiple sequence alignment is now partitioned into chunks. Chunk where the '
                 'input contig sequences are all in agreement are called "same" chunks, and those '
-                'where the input contig sequences disagree are called "different" chunks. '
-                'Trycycler then makes an initial consensus sequence by using the most common '
-                'option for each of the different chunks.')
+                'where the input contig sequences disagree are called "different" chunks.')
 
     chunks, chunk_count = [], 0
     current_chunk = Chunk()
@@ -103,24 +103,55 @@ def partition_msa(msa_seqs, seq_names, msa_length, combine_size):
 
 
 def make_initial_consensus(chunks):
-    log('Producing an initial consensus using the most common sequence for each chunk:')
+    section_header('Initial consensus')
+    explanation('Trycycler now makes an initial consensus sequence by using the most common '
+                'option for each of the different chunks. Ties between two or more options will '
+                'be dealt with in later steps.')
     total_length = 0
     for i, chunk in enumerate(chunks):
         chunk.set_best_seq_as_most_common()
         assert chunk.best_seq is not None
         total_length += len(chunk.best_seq.replace('-', ''))
-        log(f'\r  consensus length: {total_length:,} bp', end='')
+        log(f'\rConsensus length: {total_length:,} bp', end='')
     log('\n')
     consensus_seq_with_gaps = ''.join([c.best_seq for c in chunks])
     consensus_seq_without_gaps = consensus_seq_with_gaps.replace('-', '')
     return consensus_seq_with_gaps, consensus_seq_without_gaps
 
 
+def choose_which_chunks_to_assess(chunks, assess_indel_size):
+    section_header('Choosing which chunks to assess with reads')
+    explanation(f'Trycycler now decides which chunks to assess using reads. This process is '
+                f'slower, so it is only done for chunks that contain a large indel '
+                f'({assess_indel_size} or more) or have a tie for the most common sequence.')
+
+    tie_count, long_indel_count = 0, 0
+    for i, chunk in enumerate(chunks):
+        if chunk.type == 'same':
+            chunk.needs_assessment = False
+            continue
+        assert chunk.type == 'different'
+        chunk.needs_assessment = False
+        if chunk.had_tie:
+            chunk.needs_assessment = True
+            tie_count += 1
+        if chunk.has_long_indel(assess_indel_size):
+            chunk.needs_assessment = True
+            long_indel_count += 1
+    needs_assessment_count = len([c for c in chunks if c.needs_assessment])
+
+    log(f'Chunks with ties: {tie_count:,}')
+    log(f'Chunks with long indels: {long_indel_count:,}')
+    log()
+    log(f'Total chunks needing read-based assessment: {needs_assessment_count:,}')
+    log()
+
+
 def index_reads(cluster_dir, chunks, consensus_seq_with_gaps, consensus_seq_without_gaps,
                 circular, threads, min_read_cov, min_aligned_len):
     section_header('Indexing reads')
     explanation('Trycycler now aligns all reads to the initial consensus to form an index of '
-                'which reads will be informative to each of the chunks.')
+                'which reads will be informative to each of the chunks which need assessment.')
 
     ungapped_to_gapped = make_ungapped_pos_to_gapped_pos_dict(consensus_seq_with_gaps,
                                                               consensus_seq_without_gaps)
@@ -146,12 +177,13 @@ def index_reads(cluster_dir, chunks, consensus_seq_with_gaps, consensus_seq_with
     log(f'  {len(alignments):,} alignments')
     log()
 
-    different_chunk_count = len([c for c in chunks if c.type == 'different'])
+    needs_assessment_count = len([c for c in chunks if c.needs_assessment])
     chunk_start = 0
     completed = 0
     for chunk in chunks:
         chunk_end = chunk_start + chunk.get_length()
-        if chunk.type == 'different':
+        if chunk.needs_assessment:
+            assert chunk.type == 'different'
             for a in alignments:
                 gapped_start = ungapped_to_gapped[a.ref_start]
                 if a.ref_end <= ungapped_len:  # if we're not spanning the circular gap
@@ -164,7 +196,7 @@ def index_reads(cluster_dir, chunks, consensus_seq_with_gaps, consensus_seq_with
                             range_overlap(chunk_start, chunk_end, 0, gapped_end):
                         chunk.read_names.add(a.query_name)
             completed += 1
-            log(f'\rGathering reads for chunks: {completed:,} / {different_chunk_count:,}', end='')
+            log(f'\rGathering reads for chunks: {completed:,} / {needs_assessment_count:,}', end='')
         chunk_start = chunk_end
     assert chunk_start == len(consensus_seq_with_gaps)
     log('\n')
@@ -202,14 +234,14 @@ def choose_best_chunk_options(chunks, cluster_dir, threads, verbose, circular):
                 'is chosen as the best. The best option is likely to be the same as the most '
                 'common option but not necessarily so.')
     reads = load_fastq_as_dict(cluster_dir)
-    different_chunk_count = len([c for c in chunks if c.type == 'different'])
+    needs_assessment_count = len([c for c in chunks if c.needs_assessment])
 
     new_best_seqs = {}
     completed, kept, changed = 0, 0, 0
-
     for i, chunk in enumerate(chunks):
-        if chunk.type == 'same':
+        if not chunk.needs_assessment:
             continue
+        assert chunk.type == 'different'
 
         best_seq, output_lines = choose_best_chunk_option(i, reads, chunks, threads, circular)
 
@@ -227,10 +259,10 @@ def choose_best_chunk_options(chunks, cluster_dir, threads, verbose, circular):
             log()
         else:
             completed += 1
-            log(f'\rProcessing chunks: {completed:,} / {different_chunk_count:,}', end='')
+            log(f'\rProcessing chunks: {completed:,} / {needs_assessment_count:,}', end='')
 
     for i, chunk in enumerate(chunks):
-        if chunk.type == 'same':
+        if not chunk.needs_assessment:
             continue
         assert chunk.type == 'different'
         chunk.best_seq = new_best_seqs[i]
@@ -390,7 +422,9 @@ class Chunk(object):
         self.seq = None  # will hold the sequence for a 'same' chunk
         self.seqs = None  # will hold the multiple alternative sequences for a 'different' chunk
         self.read_names = set()  # will hold read names relevant for assessing this chunk
-        self.best_seq = None
+        self.best_seq = None  # will hold the chunk's best sequence as a string
+        self.had_tie = False  # whether or not this chunk's consensus sequence involved a tie
+        self.needs_assessment = None  # whether or not this chunk will be assessed using reads
 
     def add_bases(self, bases):
         assert self.can_add_bases(bases)
@@ -498,6 +532,7 @@ class Chunk(object):
 
             # If there are multiple sequences which tie for the best, then we choose the one with
             # the smallest total Hamming distance to the other options.
+            self.had_tie = True
             hamming_distances = {x: 0 for x in best_options}
             for x in best_options:
                 for y in options:
@@ -510,6 +545,18 @@ class Chunk(object):
 
             # If there are still multiple sequences, we return the lexicographically first one.
             return sorted(best_options)[0]
+
+    def has_long_indel(self, indel_size):
+        if self.type is None:
+            return False
+        elif self.type == 'same':
+            return False
+        assert self.type == 'different'
+        test_string = '-' * indel_size
+        for option in [''.join(seq) for seq in self.seqs.values()]:
+            if test_string in option:
+                return True
+        return False
 
 
 def hamming_distance(s1, s2):
