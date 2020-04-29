@@ -299,6 +299,7 @@ def choose_best_chunk_option(i, reads, chunks, threads, circular):
 
             # Align the reads to this option.
             alignments = align_reads_to_seq(fastq_filename, test_sequence, threads)
+            alignments = get_best_alignment_per_read(alignments)
             score_sum = sum(a.alignment_score for a in alignments)
             output_lines.append(f'  {option_seq}: {score_sum:,}')
             option_scores[option_seq] = score_sum
