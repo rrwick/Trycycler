@@ -13,7 +13,7 @@ If not, see <http://www.gnu.org/licenses/>.
 
 import sys
 
-from .alignment import align_a_to_b, align_reads_to_seq
+from .alignment import align_a_to_b, align_reads_to_seq, get_best_alignment_per_read
 from .log import log, section_header, explanation
 from .misc import remove_duplicates
 from . import settings
@@ -187,6 +187,7 @@ def choose_best_circularisation(candidate_seqs, reads, threads):
         loop_seq = (candidate_seq[:settings.CIRCULARISATION_CHOICE_ALIGNMENT_SIZE] +
                     candidate_seq[-settings.CIRCULARISATION_CHOICE_ALIGNMENT_SIZE:])
         alignments = align_reads_to_seq(reads, loop_seq, threads)
+        alignments = get_best_alignment_per_read(alignments)
         score = sum(a.alignment_score for a in alignments)
         log(f'{score:,}')
         if score > best_score:

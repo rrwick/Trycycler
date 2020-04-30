@@ -16,7 +16,7 @@ import pathlib
 import sys
 import tempfile
 
-from .alignment import align_reads_to_seq
+from .alignment import align_reads_to_seq, get_best_alignment_per_read
 from .log import log, section_header, explanation
 from .misc import get_sequence_file_type, load_fasta, get_fastq_stats, range_overlap, \
     load_fastq_as_dict
@@ -214,17 +214,6 @@ def make_ungapped_pos_to_gapped_pos_dict(consensus_seq_with_gaps, consensus_seq_
     assert gapped_pos == len(consensus_seq_with_gaps)
     assert ungapped_pos == len(consensus_seq_without_gaps)
     return ungapped_to_gapped
-
-
-def get_best_alignment_per_read(alignments):
-    alignments_per_read = collections.defaultdict(list)
-    for a in alignments:
-        alignments_per_read[a.query_name].append(a)
-    best_alignments = []
-    for read_name, alignments in alignments_per_read.items():
-        alignments = sorted(alignments, key=lambda x: x.alignment_score, reverse=True)
-        best_alignments.append(alignments[0])
-    return best_alignments
 
 
 def choose_best_chunk_options(chunks, cluster_dir, threads, verbose, circular):

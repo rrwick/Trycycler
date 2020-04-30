@@ -14,6 +14,7 @@ details. You should have received a copy of the GNU General Public License along
 If not, see <http://www.gnu.org/licenses/>.
 """
 
+import collections
 import os
 import pathlib
 import sys
@@ -92,3 +93,14 @@ def align_reads_to_seq(reads, seq, threads, include_cigar=True):
     alignment_lines = out.splitlines()
     alignments = [Alignment(x) for x in alignment_lines]
     return alignments
+
+
+def get_best_alignment_per_read(alignments):
+    alignments_per_read = collections.defaultdict(list)
+    for a in alignments:
+        alignments_per_read[a.query_name].append(a)
+    best_alignments = []
+    for read_name, alignments in alignments_per_read.items():
+        alignments = sorted(alignments, key=lambda x: x.alignment_score, reverse=True)
+        best_alignments.append(alignments[0])
+    return best_alignments
