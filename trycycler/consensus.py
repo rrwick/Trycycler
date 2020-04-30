@@ -229,8 +229,8 @@ def get_best_alignment_per_read(alignments):
 
 def choose_best_chunk_options(chunks, cluster_dir, threads, verbose, circular):
     section_header('Choosing best options with reads')
-    explanation('For each of the different chunks, Trycycler now aligns the relevant reads to '
-                'each alternative sequence. Whichever sequence gives the best read alignments '
+    explanation('For each of the chunks to be assessed, Trycycler now aligns the relevant reads '
+                'to each alternative sequence. Whichever sequence gives the best read alignments '
                 'is chosen as the best. The best option is likely to be the same as the most '
                 'common option but not necessarily so.')
     reads = load_fastq_as_dict(cluster_dir)

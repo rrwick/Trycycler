@@ -13,7 +13,6 @@ If not, see <http://www.gnu.org/licenses/>.
 """
 
 import gzip
-import itertools
 import multiprocessing
 import os
 import sys
@@ -118,13 +117,6 @@ def get_n50(seq_lengths):
     return 0
 
 
-def count_reads(filename):
-    count = 0
-    for _ in iterate_fastq(filename):
-        count += 1
-    return count
-
-
 def load_fasta(fasta_filename, include_full_header=False):
     if get_compression_type(fasta_filename) == 'gz':
         open_func = gzip.open
@@ -191,19 +183,6 @@ def remove_duplicates(lst):
     seen = set()
     seen_add = seen.add
     return [x for x in lst if not (x in seen or seen_add(x))]
-
-
-def means_of_slices(iterable, slice_size):
-    """
-    https://stackoverflow.com/questions/53373362/the-average-value-of-a-list-in-chunks-of-100-items
-    """
-    iterator = iter(iterable)
-    while True:
-        s = list(itertools.islice(iterator, slice_size))
-        if s:
-            yield sum(s) / len(s)
-        else:
-            return
 
 
 def check_python_version():

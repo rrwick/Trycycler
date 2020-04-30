@@ -132,15 +132,6 @@ def save_seqs_to_fasta(seqs, filename):
     log()
 
 
-def log_proportion(counts):
-    total = sum(counts.values())
-    proportions = []
-    for seq_name, count in counts.items():
-        proportion = 100.0 * count / total
-        proportions.append(f'{seq_name}: {proportion:.2f}%')
-    log('\r  ' + ', '.join(proportions), end='    ')
-
-
 def print_identity_matrix(seqs, percent_identities, min_allowed_identity):
     seq_names = sorted(seqs.keys())
     max_seq_name_len = max(len(x) for x in seq_names)
