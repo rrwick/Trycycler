@@ -573,6 +573,7 @@ class Chunk(object):
 
 def hamming_distance(s1, s2):
     dist = 0
+    assert len(s1) == len(s2)
     for i in range(len(s1)):
         if s1[i] != s2[i]:
             dist += 1

@@ -14,6 +14,8 @@ details. You should have received a copy of the GNU General Public License along
 If not, see <http://www.gnu.org/licenses/>.
 """
 
+import pytest
+
 import trycycler.consensus
 
 
@@ -123,6 +125,7 @@ def test_get_best_seq_3():
     c.add_bases({'1': 'A', '2': 'A', '3': 'C', '4': 'C', '5': 'T'})
     c.set_best_seq_as_most_common()
     assert c.best_seq == 'CCC'
+    assert not c.had_tie
 
 
 def test_get_best_seq_4():
@@ -137,6 +140,15 @@ def test_get_best_seq_4():
     c.set_best_seq_as_most_common()
     assert c.best_seq == 'AAA'
     assert c.had_tie
+
+
+def test_get_best_seq_5():
+    """
+    Tests get_best_seq() on an empty chunk.
+    """
+    c = trycycler.consensus.Chunk()
+    c.set_best_seq_as_most_common()
+    assert c.best_seq == ''
 
 
 def test_make_ungapped_pos_to_gapped_pos_dict_1():
@@ -176,6 +188,13 @@ def make_chunks_for_test_sequence():
     assert [c.best_seq for c in chunks] == ['A', 'C', 'GACGAGCAC', 'T', 'GCA', 'G', 'ACGACACGCG',
                                             'A', 'ACTAGCGCA', 'G', 'CATCGC']
     return chunks
+
+
+def test_make_initial_consensus():
+    chunks = make_chunks_for_test_sequence()
+    with_gaps, without_gaps = trycycler.consensus.make_initial_consensus(chunks)
+    assert with_gaps == 'ACGACGAGCACTGCAGACGACACGCGAACTAGCGCAGCATCGC'
+    assert without_gaps == 'ACGACGAGCACTGCAGACGACACGCGAACTAGCGCAGCATCGC'
 
 
 def test_build_test_sequence_linear_1():
@@ -267,3 +286,97 @@ def test_build_test_sequence_circular_6():
     chunks = make_chunks_for_test_sequence()
     test_seq = trycycler.consensus.build_test_sequence(9, chunks, '-', True, 1000)
     assert test_seq == 'GACGACACGCGAACTAGCGCACATCGCACGACGAGCACTGCA'
+
+
+def test_hamming_distance_1():
+    assert trycycler.consensus.hamming_distance('AAAA', 'AAAA') == 0
+
+
+def test_hamming_distance_2():
+    assert trycycler.consensus.hamming_distance('AAAA', 'AAAC') == 1
+
+
+def test_hamming_distance_3():
+    assert trycycler.consensus.hamming_distance('AAAA', 'CACC') == 3
+
+
+def test_hamming_distance_4():
+    # Strings of different length don't work.
+    with pytest.raises(AssertionError):
+        trycycler.consensus.hamming_distance('AAAA', 'AAA')
+
+
+def make_different_chunk():
+    c = trycycler.consensus.Chunk()
+    c.add_bases({'1': 'A', '2': 'C'})
+    c.add_bases({'1': 'A', '2': '-'})
+    c.add_bases({'1': 'A', '2': '-'})
+    c.add_bases({'1': 'A', '2': '-'})
+    c.add_bases({'1': 'A', '2': 'C'})
+    assert c.type == 'different'
+    return c
+
+
+def make_same_chunk():
+    c = trycycler.consensus.Chunk()
+    c.add_bases({'1': 'A'})
+    c.add_bases({'1': 'A'})
+    c.add_bases({'1': 'A'})
+    c.add_bases({'1': 'A'})
+    c.add_bases({'1': 'A'})
+    assert c.type == 'same'
+    return c
+
+
+def make_none_chunk():
+    c = trycycler.consensus.Chunk()
+    assert c.type is None
+    return c
+
+
+def make_bogus_chunk():
+    c = trycycler.consensus.Chunk()
+    c.type = 'not_a_type'
+    return c
+
+
+def test_has_long_indel_1():
+    c = make_different_chunk()
+    assert c.has_long_indel(1)
+    assert c.has_long_indel(2)
+    assert c.has_long_indel(3)
+    assert not c.has_long_indel(4)
+    assert not c.has_long_indel(5)
+
+
+def test_has_long_indel_2():
+    c = make_same_chunk()
+    assert not c.has_long_indel(1)
+    assert not c.has_long_indel(5)
+
+
+def test_has_long_indel_3():
+    c = make_none_chunk()
+    assert not c.has_long_indel(1)
+    assert not c.has_long_indel(5)
+
+
+def test_get_length_1():
+    c = make_none_chunk()
+    assert c.get_length() == 0
+
+
+def test_get_length_2():
+    c = make_same_chunk()
+    assert c.get_length() == 5
+
+
+def test_get_length_3():
+    c = make_different_chunk()
+    assert c.get_length() == 5
+
+
+def test_get_length_4():
+    c = make_bogus_chunk()
+    with pytest.raises(AssertionError):
+        c.get_length()
