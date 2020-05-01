@@ -55,9 +55,12 @@ def consensus(args):
 
 def welcome_message():
     section_header('Starting Trycycler consensus')
-    explanation('Trycycler consensus is a tool for combining multiple contigs from the same '
-                'long-read set (e.g. assemblies from different assemblers) into a consensus '
-                'contig that takes the best parts of each.')
+    explanation('Trycycler consensus is the final stage of the Trycycler pipeline. It operates '
+                'on one replicon (i.e. cluster) at a time. It takes the multiple sequence '
+                'alignment of alternative contig sequences and combines them into a single '
+                'consensus sequence. Where needed, it will use read alignments to help choose '
+                'which variants to include/exclude from the consensus sequence. If all goes '
+                'well, the final consensus will be free of any large-scale errors.')
 
 
 def check_inputs_and_requirements(args):
@@ -69,9 +72,11 @@ def check_inputs_and_requirements(args):
 
 def partition_msa(msa_seqs, seq_names, msa_length, combine_size):
     section_header('Partitioning MSA')
-    explanation('The multiple sequence alignment is now partitioned into chunks. Chunk where the '
+    explanation('The multiple sequence alignment is now partitioned into chunks. Chunks where the '
                 'input contig sequences are all in agreement are called "same" chunks, and those '
-                'where the input contig sequences disagree are called "different" chunks.')
+                'where the input contig sequences disagree are called "different" chunks. '
+                'The consensus sequence will be made by choosing a best option for each of the '
+                'different chunks.')
 
     chunks, chunk_count = [], 0
     current_chunk = Chunk()
@@ -107,9 +112,15 @@ def partition_msa(msa_seqs, seq_names, msa_length, combine_size):
 
 def make_initial_consensus(chunks):
     section_header('Initial consensus')
-    explanation('Trycycler now makes an initial consensus sequence by using the most common '
-                'option for each of the different chunks. Ties between two or more options will '
-                'be dealt with in later steps.')
+    explanation('Trycycler now makes an initial consensus sequence by simply using the most '
+                'common option for each of the different chunks. For example, if a chunk has '
+                'options of AA, AA, AA and AC, then the consensus will use AA. '
+                'If there is a tie (two or more options that are equally common), then the '
+                'consensus will use the option with the lowest total Hamming distance to the '
+                'other options. For example, options of TT, TT, CC, CC and TA will give a '
+                'consensus of TT. If the Hamming distances fail to break a tie, the the '
+                'lexicographically first sequence is used. For example, options of AA, AA, CC, '
+                'CC and GG will give a consensus of AA.')
     total_length = 0
     for i, chunk in enumerate(chunks):
         chunk.set_best_seq_as_most_common()
@@ -124,9 +135,14 @@ def make_initial_consensus(chunks):
 
 def choose_which_chunks_to_assess(chunks, assess_indel_size):
     section_header('Choosing which chunks to assess with reads')
-    explanation(f'Trycycler now decides which chunks to assess using reads. This process is '
-                f'slower, so it is only done for chunks that contain a large indel '
-                f'({assess_indel_size} or more) or have a tie for the most common sequence.')
+    explanation(f'Trycycler now decides which chunks to assess using reads. Read-based assessment '
+                f'will serve two purposes. First, it provides a better way to break ties. So any '
+                f'chunk which had a tie which was broken by lexicographical sorting will now be '
+                f'reassessed using reads and possibly have its best sequence changed. Second, it '
+                f'allows for the possibility that a chunk\'s minority option is in fact the best '
+                f'one (e.g. most input assemblies contain a misassembly but one does not). '
+                f'Therefore all chunks with a large indel ({assess_indel_size} or more) will '
+                f'receive read-based assessment.')
 
     tie_count, long_indel_count = 0, 0
     for i, chunk in enumerate(chunks):
@@ -154,7 +170,8 @@ def index_reads(cluster_dir, chunks, consensus_seq_with_gaps, consensus_seq_with
                 circular, threads, min_read_cov, min_aligned_len):
     section_header('Indexing reads')
     explanation('Trycycler now aligns all reads to the initial consensus to form an index of '
-                'which reads will be informative to each of the chunks which need assessment.')
+                'which reads span each of the chunks. This makes the following step faster, as '
+                'only relevant reads will be used when conducting read-based assessment of chunks.')
 
     ungapped_to_gapped = make_ungapped_pos_to_gapped_pos_dict(consensus_seq_with_gaps,
                                                               consensus_seq_without_gaps)
@@ -222,9 +239,10 @@ def make_ungapped_pos_to_gapped_pos_dict(consensus_seq_with_gaps, consensus_seq_
 def choose_best_chunk_options(chunks, cluster_dir, threads, verbose, circular):
     section_header('Choosing best options with reads')
     explanation('For each of the chunks to be assessed, Trycycler now aligns the relevant reads '
-                'to each alternative sequence. Whichever sequence gives the best read alignments '
-                'is chosen as the best. The best option is likely to be the same as the most '
-                'common option but not necessarily so.')
+                'to each alternative sequence. Whichever option gives the strongest read '
+                'alignments (defined as the total alignment score for each of the read\'s best '
+                'alignment) is chosen as the best. This should result in a consensus sequence '
+                'which is more accurate than the initial consensus.')
     reads = load_fastq_as_dict(cluster_dir)
     needs_assessment_count = len([c for c in chunks if c.needs_assessment])
 
@@ -240,10 +258,10 @@ def choose_best_chunk_options(chunks, cluster_dir, threads, verbose, circular):
         new_best_seqs[i] = best_seq
         if chunk.best_seq == best_seq:
             kept += 1
-            output_lines.append('  same as most common')
+            output_lines.append('  same as initial consensus')
         else:
             changed += 1
-            output_lines.append('  different to most common')
+            output_lines.append('  different to initial consensus')
 
         if verbose:
             for line in output_lines:
@@ -261,8 +279,9 @@ def choose_best_chunk_options(chunks, cluster_dir, threads, verbose, circular):
 
     if not verbose:
         log('\n')
-    log(f'chunks where sequence is still the most common:        {kept:,}')
-    log(f'chunks where sequence changed to a less-common option: {changed:,}')
+    log('Chunks where sequence is...')
+    log(f'  the same as in the initial consensus: {kept:,}')
+    log(f'  different to the initial consensus:   {changed:,}')
     log()
 
 
