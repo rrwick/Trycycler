@@ -12,6 +12,7 @@ If not, see <http://www.gnu.org/licenses/>.
 """
 
 import collections
+import math
 import pathlib
 import sys
 import tempfile
@@ -74,6 +75,8 @@ def partition_msa(msa_seqs, seq_names, msa_length, combine_size):
 
     chunks, chunk_count = [], 0
     current_chunk = Chunk()
+    for msa_seq in msa_seqs.values():
+        assert len(msa_seq) == msa_length
 
     for i in range(msa_length):
         bases = {n: msa_seqs[n][i] for n in seq_names}
@@ -284,7 +287,8 @@ def choose_best_chunk_option(i, reads, chunks, threads, circular):
         option_seqs = sorted(set(''.join(s) for s in chunk.seqs.values()))
 
         for option_seq in option_seqs:
-            test_sequence = build_test_sequence(i, chunks, option_seq, circular)
+            test_sequence = build_test_sequence(i, chunks, option_seq, circular,
+                                                settings.CHUNK_TEST_MARGIN)
 
             # Align the reads to this option.
             alignments = align_reads_to_seq(fastq_filename, test_sequence, threads)
@@ -297,53 +301,71 @@ def choose_best_chunk_option(i, reads, chunks, threads, circular):
     return best_seq, output_lines
 
 
-def build_test_sequence(i, chunks, option_seq, circular):
+def build_test_sequence(i, chunks, option_seq, circular, chunk_test_margin):
     """
     Builds a piece of the consensus sequence with the to-be-tested option in the middle.
     """
     chunk_count = len(chunks)
-    test_sequence = [option_seq]
-    included_indices = {i}
+    assert chunks[i].type == 'different'
+    if chunk_test_margin == 0:
+        return option_seq.replace('-', '')
+
+    # Set some limits for circular sequences so the option seq is in the middle.
+    total_length_with_gaps = 0
+    for j, c in enumerate(chunks):
+        if i == j:
+            total_length_with_gaps += len(option_seq)
+        else:  # for most chunks, we just use the initial consensus option
+            total_length_with_gaps += len(c.best_seq)
+    length_minus_option = total_length_with_gaps - len(option_seq)
+    max_forward = math.ceil(length_minus_option / 2)
+    max_backward = math.floor(length_minus_option / 2)
 
     # Build forward.
     j = i
     forward_length = 0
+    forward_sequence = []
     while True:
         j += 1
-        if j in included_indices:  # we've come full circle
-            break
         if j == chunk_count:
             if not circular:
                 break
             else:
                 j = 0
         new_seq = chunks[j].best_seq
-        test_sequence.append(new_seq)
+        forward_sequence.append(new_seq)
         forward_length += len(new_seq)
-        included_indices.add(j)
-        if forward_length >= settings.CHUNK_TEST_MARGIN:
+        if forward_length >= chunk_test_margin:
             break
+        if circular and forward_length >= max_forward:
+            break
+    forward_sequence = ''.join(forward_sequence)
+    forward_sequence = forward_sequence[:chunk_test_margin]
+    if circular:
+        forward_sequence = forward_sequence[:max_forward]
 
     # Build backward.
     j = i
-    reverse_length = 0
+    backward_length = 0
+    backward_sequence = []
     while True:
         j -= 1
-        if j in included_indices:  # we've come full circle
-            break
         if j == -1:
             if not circular:
                 break
             else:
                 j = chunk_count - 1
         new_seq = chunks[j].best_seq
-        test_sequence.insert(0, new_seq)  # add to front
-        reverse_length += len(new_seq)
-        included_indices.add(j)
-        if reverse_length >= settings.CHUNK_TEST_MARGIN:
+        backward_sequence.insert(0, new_seq)  # add to front
+        backward_length += len(new_seq)
+        if backward_length >= chunk_test_margin:
             break
+    backward_sequence = ''.join(backward_sequence)
+    backward_sequence = backward_sequence[-chunk_test_margin:]
+    if circular:
+        backward_sequence = backward_sequence[-max_backward:]
 
-    return ''.join(test_sequence).replace('-', '')
+    return ''.join([backward_sequence, option_seq, forward_sequence]).replace('-', '')
 
 
 def sanity_check_chunks(chunks, msa_length):
@@ -522,7 +544,6 @@ class Chunk(object):
 
             # If there are multiple sequences which tie for the best, then we choose the one with
             # the smallest total Hamming distance to the other options.
-            self.had_tie = True
             hamming_distances = {x: 0 for x in best_options}
             for x in best_options:
                 for y in options:
@@ -534,6 +555,7 @@ class Chunk(object):
                 return best_options[0]
 
             # If there are still multiple sequences, we return the lexicographically first one.
+            self.had_tie = True
             return sorted(best_options)[0]
 
     def has_long_indel(self, indel_size):
