@@ -2,7 +2,7 @@
 The version is stored here in a separate file so it can exist in only one place.
 https://stackoverflow.com/a/7071358/2438989
 
-Copyright 2019 Ryan Wick (rrwick@gmail.com)
+Copyright 2020 Ryan Wick (rrwick@gmail.com)
 https://github.com/rrwick/Trycycler
 
 This file is part of Trycycler. Trycycler is free software: you can redistribute it and/or modify
@@ -14,4 +14,4 @@ details. You should have received a copy of the GNU General Public License along
 If not, see <http://www.gnu.org/licenses/>.
 """
 
-__version__ = '0.1.0'
+__version__ = '0.2.0'

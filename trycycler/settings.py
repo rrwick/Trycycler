@@ -3,7 +3,7 @@ This module contains some hard-coded settings used in various parts of Trycycler
 probably too low-level to expose to the user (via command-line arguments) but developers may want
 to tweak them.
 
-Copyright 2019 Ryan Wick (rrwick@gmail.com)
+Copyright 2020 Ryan Wick (rrwick@gmail.com)
 https://github.com/rrwick/Trycycler
 
 This file is part of Trycycler. Trycycler is free software: you can redistribute it and/or modify

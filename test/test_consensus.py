@@ -2,7 +2,7 @@
 This module contains some tests for Trycycler. To run them, execute `python3 -m pytest` from the
 root Trycycler directory.
 
-Copyright 2019 Ryan Wick (rrwick@gmail.com)
+Copyright 2020 Ryan Wick (rrwick@gmail.com)
 https://github.com/rrwick/Trycycler
 
 This file is part of Trycycler. Trycycler is free software: you can redistribute it and/or modify
