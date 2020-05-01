@@ -199,7 +199,7 @@ def consensus_subparser(subparsers):
     setting_args.add_argument('--linear', action='store_true',
                               help='The input contigs are not circular (default: assume the input '
                                    'contigs are circular)')
-    setting_args.add_argument('--assess_indel_size', type=int, default=3,
+    setting_args.add_argument('--assess_indel_size', type=int, default=4,
                               help='Use reads to assess chunks with indels of this size or greater')
     setting_args.add_argument('--min_aligned_len', type=int, default=1000,
                               help='Do not consider reads with less than this many bases aligned')
