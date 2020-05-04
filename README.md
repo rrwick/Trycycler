@@ -1,4 +1,4 @@
-# Trycycler
+<p align="center"><img src="images/logo.png" alt="Trycycler" width="70%"></p>
 
 Trycycler is a tool for generating consensus long-read assemblies for bacterial genomes. I.e. if you have multiple long-read assemblies for the same isolate, Trycycler can combine them into a single assembly that is better than any of your inputs.
 
