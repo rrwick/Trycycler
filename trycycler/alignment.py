@@ -95,6 +95,19 @@ def align_reads_to_seq(reads, seq, threads, include_cigar=True):
     return alignments
 
 
+def align_reads_to_fasta(reads, fasta, threads, include_cigar=True):
+    minimap2_command = ['minimap2']
+    if include_cigar:
+        minimap2_command += ['--eqx', '-c']
+    minimap2_command += ['-x', 'map-ont', '-t', str(threads), str(fasta), str(reads)]
+    with open(os.devnull, 'w') as dev_null:
+        out = subprocess.check_output(minimap2_command, stderr=dev_null)
+    out = out.decode()
+    alignment_lines = out.splitlines()
+    alignments = [Alignment(x) for x in alignment_lines]
+    return alignments
+
+
 def get_best_alignment_per_read(alignments):
     alignments_per_read = collections.defaultdict(list)
     for a in alignments:

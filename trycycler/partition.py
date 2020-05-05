@@ -17,7 +17,7 @@ import sys
 from .alignment import align_reads_to_seq
 from .intrange import IntRange
 from .log import log, section_header, explanation
-from .misc import get_sequence_file_type, load_fasta, iterate_fastq, get_fastq_stats
+from .misc import get_sequence_file_type, load_fasta, iterate_fastq, check_input_reads
 from .software import check_minimap2
 
 
@@ -39,17 +39,6 @@ def check_inputs_and_requirements(args):
     check_input_reads(args.reads)
     check_input_clusters(args.cluster_dirs)
     check_required_software()
-
-
-def check_input_reads(filename):
-    read_type = get_sequence_file_type(filename)
-    if read_type != 'FASTQ':
-        sys.exit(f'\nError: input reads ({filename}) are not in FASTQ format')
-    log(f'Input reads: {filename}')
-    read_count, total_size, n50 = get_fastq_stats(filename)
-    log(f'  {read_count:,} reads ({total_size:,} bp)')
-    log(f'  N50 = {n50:,} bp')
-    log()
 
 
 def check_input_clusters(cluster_dirs):

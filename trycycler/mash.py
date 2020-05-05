@@ -21,14 +21,16 @@ from .misc import write_seq_to_fasta, reverse_complement
 from . import settings
 
 
-def get_mash_dist_matrix(seq_names, seqs, distance_threshold):
+def get_mash_dist_matrix(seq_names, seqs, distance_threshold, indent=True):
     max_seq_name_len = max(len(x) for x in seq_names)
     with tempfile.TemporaryDirectory() as temp_dir:
         temp_dir = pathlib.Path(temp_dir)
         pos_sketches, neg_sketches = make_mash_sketches(seq_names, seqs, temp_dir)
         mash_matrix = {}
         for a in seq_names:
-            log('  ' + a, end=':')
+            if indent:
+                log('  ', end='')
+            log(a, end=':')
             log(' ' * (max_seq_name_len - len(a)), end=' ')
             for b in seq_names:
                 if a == b:

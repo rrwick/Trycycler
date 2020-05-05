@@ -17,7 +17,7 @@ import sys
 from .circularisation import circularise
 from .initial_check import initial_sanity_check
 from .log import log, section_header, explanation, dim, red
-from .misc import get_sequence_file_type, load_fasta, get_fastq_stats
+from .misc import get_sequence_file_type, load_fasta, check_input_reads
 from .pairwise import get_pairwise_alignments
 from .software import check_minimap2
 from .starting_seq import get_starting_seq, rotate_to_starting_seq
@@ -63,17 +63,6 @@ def load_contig_sequences(cluster_dir):
         contig_seqs[name] = seq
         fasta_names[name] = f
     return contig_seqs, fasta_names
-
-
-def check_input_reads(filename):
-    read_type = get_sequence_file_type(filename)
-    if read_type != 'FASTQ':
-        sys.exit(f'\nError: input reads ({filename}) are not in FASTQ format')
-    log(f'Input reads: {filename}')
-    read_count, total_size, n50 = get_fastq_stats(filename)
-    log(f'  {read_count:,} reads ({total_size:,} bp)')
-    log(f'  N50 = {n50:,} bp')
-    log()
 
 
 def check_input_contigs(cluster_dir):

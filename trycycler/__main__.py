@@ -88,11 +88,18 @@ def cluster_subparser(subparsers):
     required_args.add_argument('-a', '--assemblies', type=str, required=True, nargs='+',
                                help='Input assemblies whose contigs will be clustered (multiple '
                                     'FASTA files)')
+    required_args.add_argument('-r', '--reads', type=str, required=True,
+                               help='Long reads (FASTQ format) used to generate the assemblies')
     required_args.add_argument('-o', '--out_dir', type=pathlib.Path, required=True,
                                help='Output directory')
 
     setting_args = group.add_argument_group('Settings')
-    setting_args.add_argument('-d', '--distance', type=float, default=0.01,
+    setting_args.add_argument('--min_contig_len', type=int, default=1000,
+                              help='Exclude contigs shorter than this many base pairs in length')
+    setting_args.add_argument('--min_contig_depth', type=float, default=0.1,
+                              help='Exclude contigs with less than this much read depth relative '
+                                   'to the mean read depth')
+    setting_args.add_argument('--distance', type=float, default=0.01,
                               help='Mash distance complete-linkage clustering threshold')
     setting_args.add_argument('-t', '--threads', type=int, default=get_default_thread_count(),
                               help='Number of threads to use for alignment')

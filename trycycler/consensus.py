@@ -19,7 +19,7 @@ import tempfile
 
 from .alignment import align_reads_to_seq, get_best_alignment_per_read
 from .log import log, section_header, explanation
-from .misc import get_sequence_file_type, load_fasta, get_fastq_stats, range_overlap, \
+from .misc import get_sequence_file_type, load_fasta, check_input_reads, range_overlap, \
     load_fastq_as_dict
 from .software import check_minimap2
 from . import settings
@@ -64,7 +64,7 @@ def welcome_message():
 
 
 def check_inputs_and_requirements(args):
-    check_input_reads(args.cluster_dir)
+    check_input_reads(args.cluster_dir / '4_reads.fastq')
     check_cluster_directory(args.cluster_dir)
     check_seqs(args.cluster_dir)
     check_required_software()
@@ -140,8 +140,8 @@ def choose_which_chunks_to_assess(chunks, assess_indel_size):
                 f'chunk which had a tie which was broken by lexicographical sorting will now be '
                 f'reassessed using reads and possibly have its best sequence changed. Second, it '
                 f'allows for the possibility that a chunk\'s minority option is in fact the best '
-                f'one (e.g. most input assemblies contain a misassembly but one does not). '
-                f'Therefore all chunks with a large indel ({assess_indel_size} or more) will '
+                f'one (e.g. most input assemblies contain a misassembly but one does not) '
+                f'- all chunks with a large indel ({assess_indel_size} or more) will '
                 f'receive read-based assessment.')
 
     tie_count, long_indel_count = 0, 0
@@ -281,7 +281,7 @@ def choose_best_chunk_options(chunks, cluster_dir, threads, verbose, circular):
         log('\n')
     log('Chunks where sequence is...')
     log(f'  the same as in the initial consensus: {kept:,}')
-    log(f'  different to the initial consensus:   {changed:,}')
+    log(f'  different to the initial consensus: {changed:,}')
     log()
 
 
@@ -597,18 +597,6 @@ def hamming_distance(s1, s2):
         if s1[i] != s2[i]:
             dist += 1
     return dist
-
-
-def check_input_reads(cluster_dir):
-    filename = cluster_dir / '4_reads.fastq'
-    read_type = get_sequence_file_type(filename)
-    if read_type != 'FASTQ':
-        sys.exit(f'\nError: input reads ({filename}) are not in FASTQ format')
-    log(f'Input reads: {filename}')
-    read_count, total_size, n50 = get_fastq_stats(filename)
-    log(f'  {read_count:,} reads ({total_size:,} bp)')
-    log(f'  N50 = {n50:,} bp')
-    log()
 
 
 def check_seqs(cluster_dir):

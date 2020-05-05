@@ -218,3 +218,14 @@ def range_overlap(x1, x2, y1, y2):
     Returns true if the range (x1, x2) overlaps with the range (y1, y2).
     """
     return x1 < y2 and y1 < x2
+
+
+def check_input_reads(filename):
+    read_type = get_sequence_file_type(filename)
+    if read_type != 'FASTQ':
+        sys.exit(f'\nError: input reads ({filename}) are not in FASTQ format')
+    log(f'Input reads: {filename}')
+    read_count, total_size, n50 = get_fastq_stats(filename)
+    log(f'  {read_count:,} reads ({total_size:,} bp)')
+    log(f'  N50 = {n50:,} bp')
+    log()
