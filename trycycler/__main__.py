@@ -16,7 +16,7 @@ import argparse
 import pathlib
 import sys
 
-from .align import align
+from .reconcile import reconcile
 from .cluster import cluster
 from .consensus import consensus
 from .help_formatter import MyParser, MyHelpFormatter
@@ -33,8 +33,8 @@ def main():
     if args.subparser_name == 'cluster':
         cluster(args)
 
-    elif args.subparser_name == 'align':
-        align(args)
+    elif args.subparser_name == 'reconcile':
+        reconcile(args)
 
     elif args.subparser_name == 'msa':
         msa(args)
@@ -52,7 +52,7 @@ def parse_args(args):
 
     subparsers = parser.add_subparsers(title='Commands', dest='subparser_name')
     cluster_subparser(subparsers)
-    align_subparser(subparsers)
+    reconcile_subparser(subparsers)
     msa_subparser(subparsers)
     partition_subparser(subparsers)
     consensus_subparser(subparsers)
@@ -81,7 +81,7 @@ def parse_args(args):
 
 
 def cluster_subparser(subparsers):
-    group = subparsers.add_parser('cluster', description='cluster assembly contigs by similarity ',
+    group = subparsers.add_parser('cluster', description='cluster contigs by similarity ',
                                   formatter_class=MyHelpFormatter, add_help=False)
 
     required_args = group.add_argument_group('Required arguments')
@@ -111,8 +111,8 @@ def cluster_subparser(subparsers):
                             help="Show program's version number and exit")
 
 
-def align_subparser(subparsers):
-    group = subparsers.add_parser('align', description='Check and align contig sequences',
+def reconcile_subparser(subparsers):
+    group = subparsers.add_parser('reconcile', description='reconcile contig sequences',
                                   formatter_class=MyHelpFormatter, add_help=False)
 
     required_args = group.add_argument_group('Required arguments')
@@ -142,7 +142,7 @@ def align_subparser(subparsers):
 
 
 def msa_subparser(subparsers):
-    group = subparsers.add_parser('msa', description='Multiple sequence alignment',
+    group = subparsers.add_parser('msa', description='multiple sequence alignment',
                                   formatter_class=MyHelpFormatter, add_help=False)
 
     required_args = group.add_argument_group('Required arguments')
@@ -194,7 +194,7 @@ def partition_subparser(subparsers):
 
 
 def consensus_subparser(subparsers):
-    group = subparsers.add_parser('consensus', description='Derive a consensus contig sequence',
+    group = subparsers.add_parser('consensus', description='derive a consensus sequence',
                                   formatter_class=MyHelpFormatter, add_help=False)
 
     required_args = group.add_argument_group('Required arguments')

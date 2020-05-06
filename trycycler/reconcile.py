@@ -24,7 +24,7 @@ from .starting_seq import get_starting_seq, rotate_to_starting_seq
 from . import settings
 
 
-def align(args):
+def reconcile(args):
     random.seed(0)
     welcome_message()
     check_inputs_and_requirements(args)
@@ -41,9 +41,9 @@ def align(args):
 
 
 def welcome_message():
-    section_header('Starting Trycycler align')
-    explanation('Trycycler align is a tool for reconciling multiple alternative contigs with each '
-                'other.')
+    section_header('Starting Trycycler reconcile')
+    explanation('Trycycler reconcile is a tool for reconciling multiple alternative contigs with '
+                'each other.')
 
 
 def check_inputs_and_requirements(args):

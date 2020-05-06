@@ -55,7 +55,7 @@ def finished_message():
     explanation('Now you must decide which clusters are good (i.e. contain well-assembled contigs '
                 'for replicons in the genome) and which are bad (i.e. contain incomplete or '
                 'spurious contigs). You can then delete the directories corresponding to the bad '
-                'clusters and then proceed to the next step in the pipeline: trycycler align.')
+                'clusters and then proceed to the next step in the pipeline: trycycler reconcile.')
 
 
 def check_inputs_and_requirements(args):
