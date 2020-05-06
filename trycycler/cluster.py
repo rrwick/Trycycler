@@ -26,7 +26,7 @@ from .alignment import align_reads_to_fasta, get_best_alignment_per_read
 from .log import log, section_header, explanation, red
 from .mash import get_mash_dist_matrix
 from .misc import get_sequence_file_type, load_fasta, check_input_reads
-from .software import check_mash
+from .software import check_mash, check_r, check_ape, check_phangorn
 
 
 def cluster(args):
@@ -115,7 +115,9 @@ def check_output_directory(directory):
 def check_required_software():
     log('Checking required software:')
     check_mash()
-    # TODO: check for R/ape/phangorn
+    check_r()
+    check_ape()
+    check_phangorn()
     log()
 
 

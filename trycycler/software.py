@@ -41,12 +41,17 @@ def check_muscle():
         sys.exit('\nError: unable to determine MUSCLE version - make sure that MUSCLE is '
                  'correctly installed, then try again.')
     output = output.decode().strip()
-    if 'MUSCLE ' in output:
-        output = output.split('MUSCLE ')[1]
-    if ' by ' in output:
-        output = output.split(' by ')[0]
-    output = output.strip()
-    log(f'   MUSCLE: {output}')
+    version = parse_muscle_version(output)
+    log(f'   MUSCLE: v{version}')
+
+
+def parse_muscle_version(output):
+    if 'MUSCLE v' in output:
+        output = output.split('MUSCLE v')[1]
+        output = output.split(' ')[0]
+        return output.strip()
+    else:
+        return '?'
 
 
 def check_mash():
@@ -59,4 +64,75 @@ def check_mash():
         sys.exit('\nError: unable to determine Mash version - make sure that Mash is '
                  'correctly installed, then try again.')
     output = output.decode().strip()
-    log(f'  Mash: v{output}')
+    log(f'      Mash: v{output}')
+
+
+def check_r():
+    try:
+        output = subprocess.check_output(['R', '--version'], stderr=subprocess.STDOUT)
+    except FileNotFoundError:
+        sys.exit('\nError: unable to find R - make sure that R is installed and '
+                 'available on the path, then try again.')
+    except subprocess.CalledProcessError:
+        sys.exit('\nError: unable to determine R version - make sure that R is '
+                 'correctly installed, then try again.')
+    output = output.decode().strip()
+    version = parse_r_version(output)
+    log(f'         R: v{version}')
+
+
+def parse_r_version(output):
+    if 'R version ' in output:
+        output = output.split('R version ')[1]
+        output = output.split(' ')[0]
+        return output.strip()
+    else:
+        return '?'
+
+
+def check_ape():
+    try:
+        output = subprocess.check_output(['R', '--quiet', '-e', 'packageVersion("ape")'],
+                                         stderr=subprocess.STDOUT)
+    except (FileNotFoundError, subprocess.CalledProcessError):
+        sys.exit('\nError: unable to run R - make sure that R is correctly installed, then try '
+                 'again.')
+    output = output.decode().strip()
+    if 'there is no package' in output:
+        sys.exit('\nError: unable to find ape - make sure that the "ape" package is installed '
+                 'for your R installation, then try again.')
+    version = parse_ape_version(output)
+    log(f'       ape: v{version}')
+
+
+def parse_ape_version(output):
+    if '[1] ‘' in output:
+        output = output.split('[1] ‘')[1]
+        output = output.split('’')[0]
+        return output.strip()
+    else:
+        return '?'
+
+
+def check_phangorn():
+    try:
+        output = subprocess.check_output(['R', '--quiet', '-e', 'packageVersion("phangorn")'],
+                                         stderr=subprocess.STDOUT)
+    except (FileNotFoundError, subprocess.CalledProcessError):
+        sys.exit('\nError: unable to run R - make sure that R is correctly installed, then try '
+                 'again.')
+    output = output.decode().strip()
+    if 'there is no package' in output:
+        sys.exit('\nError: unable to find ape - make sure that the "phangorn" package is '
+                 'installed for your R installation, then try again.')
+    version = parse_phangorn_version(output)
+    log(f'  phangorn: v{version}')
+
+
+def parse_phangorn_version(output):
+    if '[1] ‘' in output:
+        output = output.split('[1] ‘')[1]
+        output = output.split('’')[0]
+        return output.strip()
+    else:
+        return '?'
