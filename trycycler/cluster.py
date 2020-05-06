@@ -32,8 +32,7 @@ from .software import check_mash
 def cluster(args):
     welcome_message()
     assembly_lengths = check_inputs_and_requirements(args)
-    seqs, fasta_names = load_assembly_sequences(args.assemblies)
-    seq_names = list(seqs.keys())
+    seqs, seq_names, fasta_names = load_assembly_sequences(args.assemblies)
     depths, depth_filter = get_contig_depths(args.assemblies, seqs, seq_names, fasta_names,
                                              args.reads, args.threads, assembly_lengths,
                                              args.min_contig_depth)
@@ -132,7 +131,8 @@ def load_assembly_sequences(filenames):
             name = name.replace('#', '_')  # hashes in names can cause downstream problems
             full_name = f'{letter}_{name}'
             assembly_seqs[full_name] = seq
-    return assembly_seqs, fasta_names
+    seq_names = list(assembly_seqs.keys())
+    return assembly_seqs, seq_names, fasta_names
 
 
 def get_contig_depths(assembly_filenames, seqs, seq_names, fasta_names, read_filename, threads,
@@ -155,7 +155,7 @@ def get_contig_depths(assembly_filenames, seqs, seq_names, fasta_names, read_fil
         threshold_depth = mean_depth * min_contig_depth
         log(f', mean depth = {mean_depth:.1f}x')
         for a in alignments:
-            seq_name = f'{letter}_{a.ref_name}'
+            seq_name = f'{letter}_{a.ref_name}'.replace('#', '_')
             depth_contribution = (a.ref_end - a.ref_start) / a.ref_length
             assert depth_contribution > 0.0
             depths[seq_name] += depth_contribution
