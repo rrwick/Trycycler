@@ -141,14 +141,14 @@ def reconcile_subparser(subparsers):
                            help='Maximum allowed sequence length to be added in order to fix '
                                 'circularisation')
     circ_args.add_argument('--max_add_seq_percent', type=float, default=5.0,
-                           help='Maximum allowed relative sequence length to be added in order'
-                                'to fix circularisation')
+                           help='Maximum allowed percent relative sequence length to be added in '
+                                'order to fix circularisation')
     circ_args.add_argument('--max_trim_seq', type=int, default=50000,
                            help='Maximum allowed sequence length to be trimmed in order to fix '
                                 'circularisation')
     circ_args.add_argument('--max_trim_seq_percent', type=float, default=10.0,
-                           help='Maximum allowed relative sequence length to be trimmed in order'
-                                'to fix circularisation')
+                           help='Maximum allowed percent relative sequence length to be trimmed '
+                                'in order to fix circularisation')
 
     final_check_args = group.add_argument_group('Final check')
     final_check_args.add_argument('--min_identity', type=float, default=99.0,
