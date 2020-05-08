@@ -55,7 +55,7 @@ def finished_message():
     explanation('Now you must decide which clusters are good (i.e. contain well-assembled contigs '
                 'for replicons in the genome) and which are bad (i.e. contain incomplete or '
                 'spurious contigs). You can then delete the directories corresponding to the bad '
-                'clusters and then proceed to the next step in the pipeline: trycycler reconcile.')
+                'clusters and proceed to the next step in the pipeline: trycycler reconcile.')
 
 
 def check_inputs_and_requirements(args):
@@ -141,7 +141,8 @@ def get_contig_depths(assembly_filenames, seqs, seq_names, fasta_names, read_fil
                       assembly_lengths, min_contig_depth):
     section_header('Getting contig depths')
     explanation('Trycycler now aligns the reads to each of the assemblies to assign a read depth '
-                'value to each of the contigs.')
+                'value to each of the contigs. Contigs displayed in red have a low read depth and '
+                'will be filtered out.')
 
     name_to_letter = {v: k for k, v in fasta_names.items()}
     depths = {n: 0.0 for n in seq_names}

@@ -56,15 +56,20 @@ def red(text):
 
 
 def explanation(text, indent_size=4):
-    """
-    This function writes explanatory text to the screen. It is wrapped to the terminal width for
-    stdout but not wrapped for the log file.
-    """
     text = ' ' * indent_size + text
     terminal_width, _ = get_terminal_size_stderr()
     for line in textwrap.wrap(text, width=terminal_width - 1):
         log(dim(line))
     log()
+
+
+def quit_with_error(text):
+    terminal_width, _ = get_terminal_size_stderr()
+    log()
+    for line in textwrap.wrap(text, width=terminal_width - 1):
+        log(line)
+    log()
+    sys.exit()
 
 
 def get_terminal_size_stderr(fallback=(80, 24)):

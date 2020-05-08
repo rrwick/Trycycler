@@ -125,14 +125,36 @@ def reconcile_subparser(subparsers):
     setting_args.add_argument('--linear', action='store_true',
                               help='The input contigs are not circular (default: assume the input '
                                    'contigs are circular)')
-    setting_args.add_argument('--max_mash_dist', type=float, default=0.02,
-                              help='Maximum allowed pairwise Mash distance')
-    setting_args.add_argument('--max_length_diff', type=float, default=1.1,
-                              help='Maximum allowed pairwise relative length difference')
-    setting_args.add_argument('--min_identity', type=float, default=99.0,
-                              help='Minimum allowed pairwise percent identity')
     setting_args.add_argument('-t', '--threads', type=int, default=get_default_thread_count(),
                               help='Number of threads to use for alignment')
+    setting_args.add_argument('--verbose', action='store_true',
+                              help='Display extra output (for debugging)')
+
+    initial_check_args = group.add_argument_group('Initial check')
+    initial_check_args.add_argument('--max_mash_dist', type=float, default=0.02,
+                                    help='Maximum allowed pairwise Mash distance')
+    initial_check_args.add_argument('--max_length_diff', type=float, default=1.1,
+                                    help='Maximum allowed pairwise relative length difference')
+
+    circ_args = group.add_argument_group('Circularisation')
+    circ_args.add_argument('--max_add_seq', type=int, default=1000,
+                           help='Maximum allowed sequence length to be added in order to fix '
+                                'circularisation')
+    circ_args.add_argument('--max_add_seq_percent', type=float, default=5.0,
+                           help='Maximum allowed relative sequence length to be added in order'
+                                'to fix circularisation')
+    circ_args.add_argument('--max_trim_seq', type=int, default=50000,
+                           help='Maximum allowed sequence length to be trimmed in order to fix '
+                                'circularisation')
+    circ_args.add_argument('--max_trim_seq_percent', type=float, default=10.0,
+                           help='Maximum allowed relative sequence length to be trimmed in order'
+                                'to fix circularisation')
+
+    final_check_args = group.add_argument_group('Final check')
+    final_check_args.add_argument('--min_identity', type=float, default=99.0,
+                                  help='Minimum allowed pairwise percent identity')
+    final_check_args.add_argument('--max_indel_size', type=int, default=100,
+                                  help='Maximum allowed pairwise indel size')
 
     other_args = group.add_argument_group('Other')
     other_args.add_argument('-h', '--help', action='help', default=argparse.SUPPRESS,
@@ -215,14 +237,14 @@ def consensus_subparser(subparsers):
                                    'their length covered by alignments')
     setting_args.add_argument('-t', '--threads', type=int, default=get_default_thread_count(),
                               help='Number of threads to use for alignment')
+    setting_args.add_argument('--verbose', action='store_true',
+                              help='Display extra output (for debugging)')
 
     other_args = group.add_argument_group('Other')
     other_args.add_argument('-h', '--help', action='help', default=argparse.SUPPRESS,
                             help='Show this help message and exit')
     other_args.add_argument('--version', action='version', version='Trycycler v' + __version__,
                             help="Show program's version number and exit")
-    other_args.add_argument('--verbose', action='store_true',
-                            help='Display extra output (for debugging)')
 
 
 # TODO: parameter checking

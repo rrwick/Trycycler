@@ -15,12 +15,12 @@ import random
 import sys
 
 from .circularisation import circularise
-from .initial_check import initial_sanity_check
-from .log import log, section_header, explanation, dim, red
+from .initial_check import initial_check
+from .log import log, section_header, explanation, dim, red, quit_with_error
 from .misc import get_sequence_file_type, load_fasta, check_input_reads
 from .pairwise import get_pairwise_alignments
 from .software import check_minimap2
-from .starting_seq import get_starting_seq, rotate_to_starting_seq
+from .starting_seq import normalise_strands, get_starting_seq, rotate_to_starting_seq
 from . import settings
 
 
@@ -29,14 +29,17 @@ def reconcile(args):
     welcome_message()
     check_inputs_and_requirements(args)
     seqs, fasta_names = load_contig_sequences(args.cluster_dir)
-    initial_sanity_check(seqs, args.max_mash_dist, args.max_length_diff)
-    starting_seq, seqs = get_starting_seq(seqs, args.threads)
+    initial_check(seqs, args.max_mash_dist, args.max_length_diff)
+    seqs = normalise_strands(seqs)
     circular = not args.linear
     if circular:
-        seqs = circularise(seqs, args.reads, args.threads)
+        seqs = circularise(seqs, args)
+        seqs, starting_seq = get_starting_seq(seqs, args.threads)
         seqs = rotate_to_starting_seq(seqs, starting_seq)
-    pairwise_cigars, percent_identities = get_pairwise_alignments(seqs)
+    pairwise_cigars, percent_identities, max_indels = get_pairwise_alignments(seqs)
     print_identity_matrix(seqs, percent_identities, args.min_identity)
+    print_max_indel_matrix(seqs, max_indels, args.max_indel_size)
+    finished_message()
     save_seqs_to_fasta(seqs, args.cluster_dir / '2_all_seqs.fasta')
 
 
@@ -44,6 +47,12 @@ def welcome_message():
     section_header('Starting Trycycler reconcile')
     explanation('Trycycler reconcile is a tool for reconciling multiple alternative contigs with '
                 'each other.')
+
+
+def finished_message():
+    section_header('Finished!')
+    explanation('All contig sequences are now reconciled and ready for the next step in the '
+                'pipeline: trycycler msa.')
 
 
 def check_inputs_and_requirements(args):
@@ -122,6 +131,7 @@ def save_seqs_to_fasta(seqs, filename):
 
 
 def print_identity_matrix(seqs, percent_identities, min_allowed_identity):
+    log('Pairwise identities:')
     seq_names = sorted(seqs.keys())
     max_seq_name_len = max(len(x) for x in seq_names)
     failed = False
@@ -146,6 +156,38 @@ def print_identity_matrix(seqs, percent_identities, min_allowed_identity):
         log()
     log()
     if failed:
-        sys.exit(f'\nError: some pairwise identities are below the minimum allowed value '
-                 f'({min_allowed_identity}%). Please remove offending '
-                 f'sequences or lower the threshold and try again.')
+        quit_with_error(f'Error: some pairwise identities are below the minimum allowed value '
+                        f'of {min_allowed_identity}%. Please remove offending sequences or lower '
+                        f'the --min_identity threshold and try again.')
+
+
+def print_max_indel_matrix(seqs, max_indels, max_allowed_indel):
+    log('Maximum insertion/deletion sizes:')
+    seq_names = sorted(seqs.keys())
+    max_seq_name_len = max(len(x) for x in seq_names)
+    longest_indel_str_len = max(len(str(i)) for i in max_indels.values())
+    failed = False
+    for a in seq_names:
+        log('  ' + a, end=':')
+        log(' ' * (max_seq_name_len - len(a)), end=' ')
+        for b in seq_names:
+            if a == b:
+                max_indel = 0
+            else:
+                max_indel = max_indels[(a, b)]
+            max_indel_str = str(max_indel).rjust(longest_indel_str_len)
+            if a == b:
+                log(dim(max_indel_str), end='')
+            elif max_indel > max_allowed_indel:
+                log(red(max_indel_str), end='')
+                failed = True
+            else:
+                log(max_indel_str, end='')
+            if b != seq_names[-1]:  # if not the last one in the row
+                log('  ', end='')
+        log()
+    log()
+    if failed:
+        quit_with_error(f'Error: some pairwise indels are greater than the maximum allowed '
+                        f'value of {max_allowed_indel}. Please remove offending sequences or '
+                        f'raise the --max_indel_size threshold and try again.')

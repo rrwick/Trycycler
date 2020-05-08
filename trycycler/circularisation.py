@@ -14,12 +14,12 @@ If not, see <http://www.gnu.org/licenses/>.
 import sys
 
 from .alignment import align_a_to_b, align_reads_to_seq, get_best_alignment_per_read
-from .log import log, section_header, explanation
+from .log import log, section_header, explanation, quit_with_error
 from .misc import remove_duplicates
 from . import settings
 
 
-def circularise(seqs, reads, threads):
+def circularise(seqs, args):
     section_header('Circularisation')
     explanation('Trycycler now compares the contigs to each other to repair any circularisation '
                 'issues. After this step, each sequence should be cleanly circularised - i.e. the '
@@ -30,57 +30,47 @@ def circularise(seqs, reads, threads):
                 'circularisation, then Trycycler will use read alignments to choose the best one.')
     circularised_seqs = {}
     for name in seqs.keys():
-        circularised_seq = circularise_one_seq_with_all_others(name, seqs, reads, threads)
+        circularised_seq = circularise_seq_with_others(name, seqs, args)
         circularised_seqs[name] = circularised_seq
     return circularised_seqs
 
 
-def circularise_one_seq_with_all_others(name_a, seqs, reads, threads):
-    log(f'Circularising {name_a}')
+def circularise_seq_with_others(name_a, seqs, args):
+    log(f'Circularising {name_a}:')
     seq_a = seqs[name_a]
 
-    trim_count = 0
-    while True:
-        candidate_seqs = []
-        for name_b, seq_b in seqs.items():
-            if name_a == name_b:
-                continue
-            circularised_seq = circularise_one_seq_with_one_other(seq_a, seq_b, name_a, name_b)
-            if circularised_seq is not None:
-                candidate_seqs.append(circularised_seq)
-        candidate_seqs = remove_duplicates(candidate_seqs)
-        if len(candidate_seqs) > 0:
-            break
-        else:
-            if trim_count > settings.CIRCULARISATION_MAX_TRIM_COUNT:
-                break
-            log(f'  failed to circularise {name_a}, trimming '
-                f'{settings.CIRCULARISATION_TRIM_SIZE} bp from start/end and trying again...')
-            seq_a = seq_a[settings.CIRCULARISATION_TRIM_SIZE:-settings.CIRCULARISATION_TRIM_SIZE]
-            trim_count += 1
+    candidate_seqs = []
+    for name_b, seq_b in seqs.items():
+        if name_a != name_b:
+            candidate_seqs.append(circularise_seq_with_another(seq_a, seq_b, name_a, name_b, args))
+    candidate_seqs = [s for s in candidate_seqs if s is not None]
+    candidate_seqs = remove_duplicates(candidate_seqs)
 
     if len(candidate_seqs) == 0:
-        log()
-        sys.exit(f'\nError: failed to circularise sequence {name_a}')
+        circularised_seq = None
+        # TODO: make this message more verbose with suggestions on what to do.
+        quit_with_error(f'Error: failed to circularise sequence {name_a}.')
 
-    if len(candidate_seqs) == 1:
+    elif len(candidate_seqs) == 1:
         circularised_seq = candidate_seqs[0]
-        log(f'  only one circularisation ({len(circularised_seq):,} bp)')
+
     else:  # more than one:
-        circularised_seq = choose_best_circularisation(candidate_seqs, reads, threads)
-    log('  circularisation complete')
+        circularised_seq = choose_best_circularisation(candidate_seqs, args.reads, args.threads)
+    log(f'  circularisation complete ({len(circularised_seq):,} bp)')
     log()
     return circularised_seq
 
 
-def circularise_one_seq_with_one_other(seq_a, seq_b, name_a, name_b):
+def circularise_seq_with_another(seq_a, seq_b, name_a, name_b, args):
+    log(f'  using {name_b}:')
 
-    # TODO: if the circularisation fails, there are a few things we might try trimming some
-    #       sequence from the start/end and having another go at it.
+    max_add_seq_relative = int(round(args.max_add_seq_percent * len(seq_a) / 100.0))
+    max_add_seq = min(args.max_add_seq, max_add_seq_relative)
 
-    log(f'  using {name_b}')
+    max_trim_seq_relative = int(round(args.max_trim_seq_percent * len(seq_a) / 100.0))
+    max_trim_seq = min(args.max_trim_seq, max_trim_seq_relative)
 
-    end_alignment, start_alignment = find_end_and_start_in_other_seq(seq_a, seq_b, name_a, name_b)
+    end_alignment, start_alignment = find_end_and_start(seq_a, seq_b, name_a, name_b, args)
     if end_alignment is None or start_alignment is None:
         log('    cannot circularise')
         return None
@@ -93,12 +83,16 @@ def circularise_one_seq_with_one_other(seq_a, seq_b, name_a, name_b):
 
     # If we found them with a small gap (end then missing seq then start), that implies seq A has a
     # gapped circularisation and needs some sequence added.
-    if start_alignment.ref_start > end_alignment.ref_end and \
-            start_alignment.ref_start - end_alignment.ref_end < settings.START_END_GAP_SIZE:
+    if start_alignment.ref_start > end_alignment.ref_end:
         missing_seq = seq_b[end_alignment.ref_end:start_alignment.ref_start]
-        log(f'    circularising {name_a} by adding {len(missing_seq)} bp of sequence from'
-            f' {name_b} ({end_alignment.ref_end}-{start_alignment.ref_start})')
-        return seq_a + missing_seq
+        if len(missing_seq) < max_add_seq:
+            log(f'    circularising {name_a} by adding {len(missing_seq)} bp of sequence from'
+                f' {name_b} ({end_alignment.ref_end}-{start_alignment.ref_start})')
+            return seq_a + missing_seq
+        else:
+            log(f'    unable to circularise: {name_a} requires {len(missing_seq)} bp to be added ' 
+                f'but settings only allow {max_add_seq} bp')
+            return None
 
     # If we got here, then it seems seq A has overlapping circularisation and some sequence will
     # need to be removed. To figure out how much to trim, we take the part of seq B which precedes
@@ -107,15 +101,19 @@ def circularise_one_seq_with_one_other(seq_a, seq_b, name_a, name_b):
     if pre_start_alignment is not None:
         trim_point = pre_start_alignment.ref_end
         trim_amount = len(seq_a) - trim_point
-        if trim_amount < settings.START_END_OVERLAP_SIZE:
+        if trim_amount < max_trim_seq:
             log(f'    circularising {name_a} by trimming {trim_amount} bp of sequence from the end')
             return seq_a[:trim_point]
+        else:
+            log(f'    unable to circularise: {name_a} requires {trim_amount} bp to be trimmed ' 
+                f'but settings only allow {max_trim_seq} bp')
+            return None
 
     log('    unable to circularise')
     return None
 
 
-def find_end_and_start_in_other_seq(seq_a, seq_b, name_a, name_b):
+def find_end_and_start(seq_a, seq_b, name_a, name_b, args):
     seq_a_start_start, seq_a_start_end = 0, settings.START_END_SIZE
     seq_a_end_start, seq_a_end_end = len(seq_a) - settings.START_END_SIZE, len(seq_a)
 
@@ -123,36 +121,44 @@ def find_end_and_start_in_other_seq(seq_a, seq_b, name_a, name_b):
     end_seq = seq_a[seq_a_end_start:seq_a_end_end]
 
     # Look for seq A's end sequence in seq B. We should hopefully find one instance.
-    log(f'    looking for {name_a}\'s end in {name_b}...   ', end='')
+    if args.verbose:
+        log(f'    looking for {name_a}\'s end in {name_b}...   ', end='')
     end_alignments = align_a_to_b(end_seq, seq_b)
     end_alignments = [a for a in end_alignments if a.strand == '+'
                       and a.percent_identity >= settings.START_END_IDENTITY_THRESHOLD
                       and a.query_cov >= settings.START_END_COV_THRESHOLD]
     if len(end_alignments) == 0:
-        log('not found')
+        if args.verbose:
+            log('not found')
         return None, None
     elif len(end_alignments) > 1:
-        log('multiple hits')
+        if args.verbose:
+            log('multiple hits')
         return None, None
     assert len(end_alignments) == 1
     end_alignment = end_alignments[0]
-    log(f'found at {end_alignment.ref_start}-{end_alignment.ref_end}')
+    if args.verbose:
+        log(f'found at {end_alignment.ref_start}-{end_alignment.ref_end}')
 
     # Look for seq A's start sequence in seq B. We should hopefully find one instance.
-    log(f'    looking for {name_a}\'s start in {name_b}... ', end='')
+    if args.verbose:
+        log(f'    looking for {name_a}\'s start in {name_b}... ', end='')
     start_alignments = align_a_to_b(start_seq, seq_b)
     start_alignments = [a for a in start_alignments if a.strand == '+'
                         and a.percent_identity >= settings.START_END_IDENTITY_THRESHOLD
                         and a.query_cov >= settings.START_END_COV_THRESHOLD]
     if len(start_alignments) == 0:
-        log('not found')
+        if args.verbose:
+            log('not found')
         return None, None
     elif len(start_alignments) > 1:
-        log('multiple hits')
+        if args.verbose:
+            log('multiple hits')
         return None, None
     assert len(start_alignments) == 1
     start_alignment = start_alignments[0]
-    log(f'found at {start_alignment.ref_start}-{start_alignment.ref_end}')
+    if args.verbose:
+        log(f'found at {start_alignment.ref_start}-{start_alignment.ref_end}')
 
     return end_alignment, start_alignment
 

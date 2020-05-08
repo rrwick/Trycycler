@@ -13,12 +13,12 @@ If not, see <http://www.gnu.org/licenses/>.
 
 import sys
 
-from .log import log, section_header, explanation, dim, red
+from .log import log, section_header, explanation, dim, red, quit_with_error
 from .mash import get_mash_dist_matrix
 
 
-def initial_sanity_check(seqs, max_mash_dist, max_length_diff):
-    section_header('Checking closeness of contigs')
+def initial_check(seqs, max_mash_dist, max_length_diff):
+    section_header('Initial check of contigs')
     explanation('Before proceeding, Trycycler ensures that the input contigs appear sufficiently '
                 'close to each other to make a consensus. If not, the program will quit and the '
                 'user must fix the input contigs (make them more similar to each other) or exclude '
@@ -73,7 +73,11 @@ def check_length_ratios(length_matrix, max_length_diff):
     max_ratio = length_matrix[max_pair]
     min_threshold, max_threshold = get_length_thresholds(max_length_diff)
     if min_ratio < min_threshold or max_ratio > max_threshold:
-        sys.exit('\nError: there is too much length difference between contigs')
+        quit_with_error('Error: there is too much length difference between contigs. You must '
+                        'either exclude or repair the offending contig sequences and then try '
+                        'running trycycler reconcile again. If one of the sequences is too long, '
+                        'it could be due to excessive circularisation overlap, and trimming that '
+                        'overlap may allow trycycler reconcile to continue.')
 
 
 def get_length_thresholds(max_length_diff):
@@ -92,4 +96,7 @@ def check_mash_distances(mash_matrix, max_mash_dist):
     max_pair = max(mash_matrix, key=mash_matrix.get)
     max_dist = mash_matrix[max_pair]
     if max_dist > max_mash_dist:
-        sys.exit(f'\nError: there is too much Mash distance between contigs')
+        quit_with_error('Error: there is too much Mash distance between contigs. You should '
+                        'exclude the offending contig sequences and then try running trycycler '
+                        'reconcile again. Alternatively, if you want to accept the high Mash '
+                        'distances, you can increase the value of the --max_mash_dist option.')

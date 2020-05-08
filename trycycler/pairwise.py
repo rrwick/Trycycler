@@ -26,7 +26,7 @@ def get_pairwise_alignments(seqs):
                 'run this command again.')
     seq_names = list(seqs.keys())
     max_seq_name_len = max(len(x) for x in seq_names)
-    pairwise_cigars, percent_identities = {}, {}
+    pairwise_cigars, percent_identities, max_indels = {}, {}, {}
 
     for i, a in enumerate(seq_names):
         seq_a = seqs[a]
@@ -45,9 +45,11 @@ def get_pairwise_alignments(seqs):
             pairwise_cigars[(a, b)] = cigar
             percent_identities[(a, b)] = percent_identity
             percent_identities[(b, a)] = percent_identity
+            max_indels[(a, b)] = max_indel
+            max_indels[(b, a)] = max_indel
     log()
 
-    return pairwise_cigars, percent_identities
+    return pairwise_cigars, percent_identities, max_indels
 
 
 def identity_and_max_indel_from_cigar(cigar):
