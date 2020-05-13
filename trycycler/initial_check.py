@@ -11,8 +11,6 @@ details. You should have received a copy of the GNU General Public License along
 If not, see <http://www.gnu.org/licenses/>.
 """
 
-import sys
-
 from .log import log, section_header, explanation, dim, red, quit_with_error
 from .mash import get_mash_dist_matrix
 

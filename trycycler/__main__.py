@@ -151,9 +151,9 @@ def reconcile_subparser(subparsers):
                                 'in order to fix circularisation')
 
     final_check_args = group.add_argument_group('Final check')
-    final_check_args.add_argument('--min_identity', type=float, default=99.0,
+    final_check_args.add_argument('--min_identity', type=float, default=98.0,
                                   help='Minimum allowed pairwise percent identity')
-    final_check_args.add_argument('--max_indel_size', type=int, default=100,
+    final_check_args.add_argument('--max_indel_size', type=int, default=250,
                                   help='Maximum allowed pairwise indel size')
 
     other_args = group.add_argument_group('Other')
