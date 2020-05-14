@@ -271,10 +271,10 @@ def choose_best_circularisation(candidate_seqs, reads, threads):
     """
     log(f'  choosing best circularisation of {len(candidate_seqs)} alternatives')
     best_seq, best_score, best_i = None, 0.0, 0
+    halfway_point = len(candidate_seqs[0]) // 2
     for i, candidate_seq in enumerate(candidate_seqs):
         log(f'    alternative {i+1} ({len(candidate_seq):,} bp): score = ', end='')
-        loop_seq = (candidate_seq[:settings.CIRCULARISATION_CHOICE_ALIGNMENT_SIZE] +
-                    candidate_seq[-settings.CIRCULARISATION_CHOICE_ALIGNMENT_SIZE:])
+        loop_seq = candidate_seq[:halfway_point] + candidate_seq[halfway_point:]
         alignments = align_reads_to_seq(reads, loop_seq, threads)
         alignments = get_best_alignment_per_read(alignments)
         score = sum(a.alignment_score for a in alignments)
