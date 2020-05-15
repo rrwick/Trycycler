@@ -11,6 +11,8 @@ details. You should have received a copy of the GNU General Public License along
 If not, see <http://www.gnu.org/licenses/>.
 """
 
+import collections
+
 from .alignment import align_a_to_b, align_reads_to_seq, get_best_alignment_per_read
 from .log import log, section_header, explanation, quit_with_error
 from .misc import remove_duplicates
@@ -38,11 +40,13 @@ def circularise_seq_with_others(name_a, seqs, args):
     seq_a = seqs[name_a]
 
     candidate_seqs, fail_reasons = [], []
+    candidate_seq_counts = collections.defaultdict(int)
     for name_b, seq_b in seqs.items():
         if name_a != name_b:
             candidate_seq, fail_reason = \
                 circularise_seq_with_another(seq_a, seq_b, name_a, name_b, args)
             candidate_seqs.append(candidate_seq)
+            candidate_seq_counts[candidate_seq] += 1
             fail_reasons.append(fail_reason)
     candidate_seqs = [s for s in candidate_seqs if s is not None]
     candidate_seqs = remove_duplicates(candidate_seqs)
@@ -55,7 +59,9 @@ def circularise_seq_with_others(name_a, seqs, args):
         circularised_seq = candidate_seqs[0]
 
     else:  # more than one:
-        circularised_seq = choose_best_circularisation(candidate_seqs, args.reads, args.threads)
+        circularised_seq = choose_best_circularisation(candidate_seqs, candidate_seq_counts,
+                                                       args.reads, args.threads)
+
     log(f'  circularisation complete ({len(circularised_seq):,} bp)')
     log()
     return circularised_seq
@@ -263,12 +269,23 @@ def find_pre_start_alignment(seq_a, seq_b, name_a, name_b, start_alignment, verb
     return pre_start_alignments[-1]
 
 
-def choose_best_circularisation(candidate_seqs, reads, threads):
+def choose_best_circularisation(candidate_seqs, candidate_seq_counts, reads, threads):
     """
-    This function chooses between multiple alternative circularisations. It does so by aligning
-    reads to the junction and choosing whichever circularisation has the highest total alignment
-    score.
+    This function chooses between multiple alternative circularisations. It first tries to choose
+    the a most-common option: it excludes all just-once options, and if a single option remains,
+    that's the one. If that fails to find a winner, then it aligns reads to the option and chooses
+    whichever circularisation has the highest total alignment score.
     """
+    more_than_one = [seq for seq, count in candidate_seq_counts.items() if count > 1]
+    if len(more_than_one) == 1:
+        log('  choosing most common circularisation')
+        return more_than_one[0]
+
+    # If there are multiple options each with more than one vote, then we will only consider those
+    # for the read-based decision.
+    elif len(more_than_one) > 1:
+        candidate_seqs = more_than_one
+
     log(f'  choosing best circularisation of {len(candidate_seqs)} alternatives')
     best_seq, best_score, best_i = None, 0.0, 0
     halfway_point = len(candidate_seqs[0]) // 2
