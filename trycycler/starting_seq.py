@@ -150,16 +150,16 @@ def rotate_to_starting_seq(seqs, starting_seq):
 def get_random_common_sequence(seqs):
     potential_starting_seqs = get_random_common_sequence_candidates(seqs)
 
-    # Choose the first sequence which has a single solid alignment to each of the sequences.
+    # Choose the first sequence which has only a single solid alignment to each of the sequences.
     for starting_seq in potential_starting_seqs:
-        num_alignments = []
+        num_alignments, num_good_alignments = [], []
         for seq in seqs.values():
             alignments = align_a_to_b(starting_seq, seq, preset='map-ont')
+            num_alignments.append(len(alignments))
             alignments = [a for a in alignments if a.query_cov == 100.0
                           and a.percent_identity > settings.RANDOM_COMMON_SEQ_MIN_IDENTITY]
-            num_alignments.append(len(alignments))
-
-        if all(n == 1 for n in num_alignments):
+            num_good_alignments.append(len(alignments))
+        if all(n == 1 for n in num_alignments) and all(n == 1 for n in num_good_alignments):
             log('Randomly-chosen common sequence:')
             for line in textwrap.wrap(starting_seq, width=50):
                 log('  ' + line)
