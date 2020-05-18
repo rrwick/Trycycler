@@ -286,7 +286,8 @@ def choose_best_circularisation(candidate_seqs, candidate_seq_counts, reads, thr
     that's the one. If that fails to find a winner, then it aligns reads to the option and chooses
     whichever circularisation has the highest total alignment score.
     """
-    more_than_one = [seq for seq, count in candidate_seq_counts.items() if count > 1]
+    more_than_one = [seq for seq, count in candidate_seq_counts.items()
+                     if count > 1 and seq is not None]
     if len(more_than_one) == 1:
         log('  choosing most common circularisation')
         return more_than_one[0]
