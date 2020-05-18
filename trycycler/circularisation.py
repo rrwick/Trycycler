@@ -116,7 +116,8 @@ def circularise_seq_with_another(seq_a, seq_b, name_a, name_b, args):
     end_alignment, start_alignment, fail_reason = \
         find_end_and_start(seq_a, seq_b, name_a, name_b, args)
     if end_alignment is None or start_alignment is None:
-        log(f'    unable to circularise: {name_a}\'s start/end could not be found in {name_b}')
+        start_or_end = 'start' if fail_reason == 'start not found' else 'end'
+        log(f'    unable to circularise: {name_a}\'s {start_or_end} could not be found in {name_b}')
         return None, fail_reason
 
     # If we found them with no gap at all (end immediately followed by start), that implies seq A
@@ -161,7 +162,7 @@ def circularise_seq_with_another(seq_a, seq_b, name_a, name_b, args):
                 f'but settings only allow {max_trim_seq} bp')
             return None, 'too much extra'
 
-    log('    unable to circularise')
+    log('    unable to circularise: cannot determine trim amount')
     return None, 'other'
 
 
@@ -247,26 +248,35 @@ def find_pre_start_alignment(seq_a, seq_b, name_a, name_b, start_alignment, verb
     start_end_size = get_start_end_size(seq_a)
     start, end = start_alignment.ref_start - start_end_size, start_alignment.ref_start
     if start < 0:
+        if verbose:
+            log(f'    cannot search for {name_b}\'s before-start ({start}-{end}) in {name_a}')
         return None
     pre_start_seq = seq_b[start:end]
     if verbose:
         log(f'    looking for {name_b}\'s before-start ({start}-{end}) in {name_a}... ')
 
     if len(pre_start_seq) != start_end_size:
+        if verbose:
+            log('      not found')
         return None
     pre_start_alignments = align_a_to_b(pre_start_seq, seq_a)
     pre_start_alignments = [a for a in pre_start_alignments if a.strand == '+'
                             and a.percent_identity >= settings.START_END_IDENTITY_THRESHOLD
                             and a.query_cov >= settings.START_END_COV_THRESHOLD]
     if len(pre_start_alignments) == 0:
+        if verbose:
+            log('      not found')
         return None
     elif len(pre_start_alignments) == 1:
-        return pre_start_alignments[0]
+        pre_start_alignment = pre_start_alignments[0]
+    else:
+        # If we got here, then there are multiple alignments. We choose the one closest to the end.
+        pre_start_alignments = sorted(pre_start_alignments, key=lambda a: a.ref_end)
+        pre_start_alignment = pre_start_alignments[-1]
 
-    # If we got here, then there are multiple alignments. We choose the one closest to the end
-    # of the
-    pre_start_alignments = sorted(pre_start_alignments, key=lambda a: a.ref_end)
-    return pre_start_alignments[-1]
+    if verbose:
+        log(f'      found at {pre_start_alignment.ref_start}-{pre_start_alignment.ref_end}')
+    return pre_start_alignment
 
 
 def choose_best_circularisation(candidate_seqs, candidate_seq_counts, reads, threads):
