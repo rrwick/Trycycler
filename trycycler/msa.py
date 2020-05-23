@@ -112,7 +112,7 @@ def find_next_cutoff_positions(seqs, seq_names, first_seq, seq_positions, kmer_s
 
     while True:
         # If we've left the end of the first sequence, then take each sequence to its end.
-        if first_seq_pos > len(first_seq):
+        if first_seq_pos + kmer_size > len(first_seq):
             new_positions = {n: len(seqs[n]) for n in seq_names}
             return new_positions
 
