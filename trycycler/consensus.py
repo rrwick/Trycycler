@@ -290,7 +290,6 @@ def choose_best_chunk_option(i, reads, chunks, threads, circular):
     assert chunk.type == 'different'
     assert len(chunk.seqs) > 1
 
-    output_lines = [f'chunk {i + 1}']
     chunk_reads = [reads[r] for r in sorted(chunk.read_names)]
 
     with tempfile.TemporaryDirectory() as temp_dir:
@@ -302,21 +301,36 @@ def choose_best_chunk_option(i, reads, chunks, threads, circular):
             for header, seq, qual in chunk_reads:
                 fastq_file.write(f'@{header}\n{seq}\n+\n{qual}\n')
 
-        option_scores = {}
-        option_seqs = sorted(set(''.join(s) for s in chunk.seqs.values()))
+        scores = {}
+        option_seqs = sorted(''.join(s) for s in chunk.seqs.values())
 
+        counts = collections.defaultdict(int)
+        for s in option_seqs:
+            counts[s] += 1
+
+        option_seqs = sorted(set(option_seqs))  # get rid of duplicates
+
+        # Get the alignment scores for each option.
         for option_seq in option_seqs:
             test_sequence = build_test_sequence(i, chunks, option_seq, circular,
                                                 settings.CHUNK_TEST_MARGIN)
-
-            # Align the reads to this option.
-            alignments = align_reads_to_seq(fastq_filename, test_sequence, threads)
+            alignments = align_reads_to_seq(fastq_filename, test_sequence, threads,
+                                            scores=(1, 1, 1, 1))
             alignments = get_best_alignment_per_read(alignments)
             score_sum = sum(a.alignment_score for a in alignments)
-            output_lines.append(f'  {option_seq}: {score_sum:,}')
-            option_scores[option_seq] = score_sum
+            scores[option_seq] = score_sum
 
-    best_seq = max(option_scores, key=option_scores.get)
+    best_seq = max(scores, key=scores.get)
+
+    output_lines = [f'chunk {i + 1}']
+    for seq in option_seqs:
+        line = f'  {seq}: count = {counts[seq]}, score = {scores[seq]:,}'
+        if seq == chunk.best_seq:
+            line += ', initial'
+        if seq == best_seq:
+            line += ', best'
+        output_lines.append(line)
+
     return best_seq, output_lines
 
 

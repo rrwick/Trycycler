@@ -48,7 +48,7 @@ def check_input_clusters(cluster_dirs):
     for d in cluster_dirs:
         contigs = sorted(d.glob('2_all_seqs.fasta'))
         if not contigs:
-            sys.exit(f'\nError: there is not 2_all_seqs.fasta file in {d}')
+            sys.exit(f'\nError: there is not a 2_all_seqs.fasta file in {d}')
         assert len(contigs) == 1
         f = contigs[0]
         contig_type = get_sequence_file_type(f)
@@ -80,9 +80,12 @@ def align_reads(cluster_dirs, reads, threads, min_aligned_len, min_read_cov):
         assert len(contigs) == 1
         seqs = load_fasta(contigs[0])
 
+        seq_labels = [f'{name} ({len(seq):,} bp): ' for name, seq in seqs]
+        longest_label = max(len(x) for x in seq_labels)
+
         for name, seq in seqs:
             seq_len = len(seq)
-            log(f'{name} ({len(seq):,} bp)', end=': ')
+            log(f'{name} ({len(seq):,} bp): '.rjust(longest_label), end='')
             doubled_seq = seq + seq
             alignments = align_reads_to_seq(reads, doubled_seq, threads, include_cigar=False)
 
@@ -114,7 +117,7 @@ def align_reads(cluster_dirs, reads, threads, min_aligned_len, min_read_cov):
                     if a.matching_bases > best_matching_bases[read_name]:
                         best_clusters[read_name] = d
                         best_matching_bases[read_name] = a.matching_bases
-    log()
+        log()
 
     return best_clusters
 

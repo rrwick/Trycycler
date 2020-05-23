@@ -78,7 +78,7 @@ def align_a_to_b(seq_a, seq_b, preset='asm20'):
     return alignments
 
 
-def align_reads_to_seq(reads, seq, threads, include_cigar=True):
+def align_reads_to_seq(reads, seq, threads, include_cigar=True, scores=None):
     with tempfile.TemporaryDirectory() as temp_dir:
         temp_dir = pathlib.Path(temp_dir)
         temp_fasta = temp_dir / 'seq.fasta'
@@ -86,6 +86,9 @@ def align_reads_to_seq(reads, seq, threads, include_cigar=True):
         minimap2_command = ['minimap2']
         if include_cigar:
             minimap2_command += ['--eqx', '-c']
+        if scores is not None:
+            minimap2_command += ['-A', str(scores[0]), '-B', str(scores[1]),
+                                 '-O', str(scores[2]), '-E', str(scores[3])]
         minimap2_command += ['-x', 'map-ont', '-t', str(threads), str(temp_fasta), str(reads)]
         with open(os.devnull, 'w') as dev_null:
             out = subprocess.check_output(minimap2_command, stderr=dev_null)
