@@ -144,25 +144,11 @@ def choose_which_chunks_to_assess(chunks, assess_indel_size):
                 f'- all chunks with a large indel ({assess_indel_size} or more) will '
                 f'receive read-based assessment.')
 
-    tie_count, long_indel_count = 0, 0
-    for i, chunk in enumerate(chunks):
-        if chunk.type == 'same':
-            chunk.needs_assessment = False
-            continue
-        assert chunk.type == 'different'
-        chunk.needs_assessment = False
-        if chunk.had_tie:
-            chunk.needs_assessment = True
-            tie_count += 1
-        if chunk.has_long_indel(assess_indel_size):
-            chunk.needs_assessment = True
-            long_indel_count += 1
+    for chunk in chunks:
+        chunk.determine_if_needs_assessment()
     needs_assessment_count = len([c for c in chunks if c.needs_assessment])
 
-    log(f'Chunks with ties: {tie_count:,}')
-    log(f'Chunks with long indels: {long_indel_count:,}')
-    log()
-    log(f'Total chunks needing read-based assessment: {needs_assessment_count:,}')
+    log(f'Chunks needing read-based assessment: {needs_assessment_count:,}')
     log()
 
 
@@ -288,9 +274,28 @@ def choose_best_chunk_options(chunks, cluster_dir, threads, verbose, circular):
 def choose_best_chunk_option(i, reads, chunks, threads, circular):
     chunk = chunks[i]
     assert chunk.type == 'different'
+    assert chunk.needs_assessment
     assert len(chunk.seqs) > 1
 
     chunk_reads = [reads[r] for r in sorted(chunk.read_names)]
+
+    all_seqs = sorted(''.join(s) for s in chunk.seqs.values())
+    option_counts = list(collections.Counter(all_seqs).items())
+    all_seqs_set = sorted(set(all_seqs))
+    assert len(option_counts) > 1  # a 'different' chunk has multiple options by definition
+    more_than_one = [seq for seq, count in option_counts if count > 1]
+
+    # If there is only one instance of each sequence, we assess them all.
+    if len(more_than_one) == 0:
+        option_seqs = [seq for seq, count in option_counts]
+
+    # If there are multiple sequences with multiple instances, those are the ones we assess.
+    elif len(more_than_one) > 1:
+        option_seqs = more_than_one
+
+    # There shouldn't be only one sequence with multiple instances (those chunks aren't assessed).
+    else:
+        assert False
 
     with tempfile.TemporaryDirectory() as temp_dir:
         temp_dir = pathlib.Path(temp_dir)
@@ -301,16 +306,12 @@ def choose_best_chunk_option(i, reads, chunks, threads, circular):
             for header, seq, qual in chunk_reads:
                 fastq_file.write(f'@{header}\n{seq}\n+\n{qual}\n')
 
-        scores = {}
-        option_seqs = sorted(''.join(s) for s in chunk.seqs.values())
-
         counts = collections.defaultdict(int)
-        for s in option_seqs:
+        for s in all_seqs:
             counts[s] += 1
 
-        option_seqs = sorted(set(option_seqs))  # get rid of duplicates
-
         # Get the alignment scores for each option.
+        scores = {s: 0 for s in all_seqs_set}
         for option_seq in option_seqs:
             test_sequence = build_test_sequence(i, chunks, option_seq, circular,
                                                 settings.CHUNK_TEST_MARGIN)
@@ -323,7 +324,7 @@ def choose_best_chunk_option(i, reads, chunks, threads, circular):
     best_seq = max(scores, key=scores.get)
 
     output_lines = [f'chunk {i + 1}']
-    for seq in option_seqs:
+    for seq in all_seqs_set:
         line = f'  {seq}: count = {counts[seq]}, score = {scores[seq]:,}'
         if seq == chunk.best_seq:
             line += ', initial'
@@ -591,17 +592,23 @@ class Chunk(object):
             self.had_tie = True
             return sorted(best_options)[0]
 
-    def has_long_indel(self, indel_size):
-        if self.type is None:
-            return False
-        elif self.type == 'same':
-            return False
-        assert self.type == 'different'
-        test_string = '-' * indel_size
-        for option in [''.join(seq) for seq in self.seqs.values()]:
-            if test_string in option:
-                return True
-        return False
+    def determine_if_needs_assessment(self):
+        if self.type == 'same':
+            self.needs_assessment = False
+        else:
+            assert self.type == 'different'
+            options = [''.join(seq) for seq in self.seqs.values()]
+            option_counts = list(collections.Counter(options).items())
+            assert len(option_counts) > 1  # a 'different' chunk has multiple options by definition
+            more_than_one = [seq for seq, count in option_counts if count > 1]
+
+            if len(more_than_one) == 0:  # only one instance of each option
+                self.needs_assessment = True
+            elif len(more_than_one) > 1:
+                self.needs_assessment = True
+            else:
+                assert len(more_than_one) == 1
+                self.needs_assessment = False
 
 
 def hamming_distance(s1, s2):
