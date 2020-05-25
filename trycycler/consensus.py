@@ -42,8 +42,6 @@ def consensus(args):
     save_seqs_to_fasta({args.cluster_dir.name + '_consensus': consensus_seq_without_gaps},
                        args.cluster_dir / '6_initial_consensus.fasta')
 
-    choose_which_chunks_to_assess(chunks, args.assess_indel_size)
-
     index_reads(args.cluster_dir, chunks, consensus_seq_with_gaps, consensus_seq_without_gaps,
                 circular, args.threads, args.min_read_cov, args.min_aligned_len)
     choose_best_chunk_options(chunks, args.cluster_dir, args.threads, args.verbose, circular)
@@ -112,44 +110,32 @@ def partition_msa(msa_seqs, seq_names, msa_length, combine_size):
 
 def make_initial_consensus(chunks):
     section_header('Initial consensus')
-    explanation('Trycycler now makes an initial consensus sequence by simply using the most '
-                'common option for each of the different chunks. For example, if a chunk has '
-                'options of AA, AA, AA and AC, then the consensus will use AA. '
-                'If there is a tie (two or more options that are equally common), then the '
-                'consensus will use the option with the lowest total Hamming distance to the '
-                'other options. For example, options of TT, TT, CC, CC and TA will give a '
-                'consensus of TT. If the Hamming distances fail to break a tie, the the '
-                'lexicographically first sequence is used. For example, options of AA, AA, CC, '
-                'CC and GG will give a consensus of AA.')
-    total_length = 0
+    explanation('Trycycler now makes an initial consensus sequence by choosing a sequence for '
+                'each of the different chunks. The chosen sequence is the one with the lowest '
+                'total Hamming distance to the other sequences. For example, a chunk with options '
+                'of TT, TT, CC, CC and TA will give a consensus of TT. If the total Hamming '
+                'distances fail to break a tie, the chunk will be flagged for read-based '
+                'assessment.')
+    total_length, different_needing_assessment, different_not_needing_assessment = 0, 0, 0
     for i, chunk in enumerate(chunks):
-        chunk.set_best_seq_as_most_common()
+        chunk.prepare_chunk()
+        if chunk.type == 'different':
+            if chunk.needs_assessment:
+                different_needing_assessment += 1
+            else:
+                different_not_needing_assessment += 1
+
         assert chunk.best_seq is not None
         total_length += len(chunk.best_seq.replace('-', ''))
-        log(f'\rConsensus length: {total_length:,} bp', end='')
-    log('\n')
+
+    log(f'Consensus length: {total_length:,} bp')
+    log('')
+    log(f'Different chunks needing assessment:     {different_needing_assessment:,}')
+    log(f'Different chunks not needing assessment: {different_not_needing_assessment:,}')
+    log('')
     consensus_seq_with_gaps = ''.join([c.best_seq for c in chunks])
     consensus_seq_without_gaps = consensus_seq_with_gaps.replace('-', '')
     return consensus_seq_with_gaps, consensus_seq_without_gaps
-
-
-def choose_which_chunks_to_assess(chunks, assess_indel_size):
-    section_header('Choosing which chunks to assess with reads')
-    explanation(f'Trycycler now decides which chunks to assess using reads. Read-based assessment '
-                f'will serve two purposes. First, it provides a better way to break ties. So any '
-                f'chunk which had a tie which was broken by lexicographical sorting will now be '
-                f'reassessed using reads and possibly have its best sequence changed. Second, it '
-                f'allows for the possibility that a chunk\'s minority option is in fact the best '
-                f'one (e.g. most input assemblies contain a misassembly but one does not) '
-                f'- all chunks with a large indel ({assess_indel_size} or more) will '
-                f'receive read-based assessment.')
-
-    for chunk in chunks:
-        chunk.determine_if_needs_assessment()
-    needs_assessment_count = len([c for c in chunks if c.needs_assessment])
-
-    log(f'Chunks needing read-based assessment: {needs_assessment_count:,}')
-    log()
 
 
 def index_reads(cluster_dir, chunks, consensus_seq_with_gaps, consensus_seq_without_gaps,
@@ -165,7 +151,7 @@ def index_reads(cluster_dir, chunks, consensus_seq_with_gaps, consensus_seq_with
     ungapped_len = len(consensus_seq_without_gaps)
     gapped_len = len(consensus_seq_with_gaps)
 
-    log('Aligning reads to initial consensus:')
+    log('Aligning reads to the initial consensus:')
     if circular:
         ref_seq = consensus_seq_without_gaps + consensus_seq_without_gaps
         alignments = align_reads_to_seq(reads, ref_seq, threads)
@@ -244,10 +230,8 @@ def choose_best_chunk_options(chunks, cluster_dir, threads, verbose, circular):
         new_best_seqs[i] = best_seq
         if chunk.best_seq == best_seq:
             kept += 1
-            output_lines.append('  same as initial consensus')
         else:
             changed += 1
-            output_lines.append('  different to initial consensus')
 
         if verbose:
             for line in output_lines:
@@ -267,35 +251,16 @@ def choose_best_chunk_options(chunks, cluster_dir, threads, verbose, circular):
         log('\n')
     log('Chunks where sequence is...')
     log(f'  the same as in the initial consensus: {kept:,}')
-    log(f'  different to the initial consensus: {changed:,}')
+    log(f'  different to the initial consensus:   {changed:,}')
     log()
 
 
 def choose_best_chunk_option(i, reads, chunks, threads, circular):
     chunk = chunks[i]
     assert chunk.type == 'different'
-    assert chunk.needs_assessment
     assert len(chunk.seqs) > 1
 
     chunk_reads = [reads[r] for r in sorted(chunk.read_names)]
-
-    all_seqs = sorted(''.join(s) for s in chunk.seqs.values())
-    option_counts = list(collections.Counter(all_seqs).items())
-    all_seqs_set = sorted(set(all_seqs))
-    assert len(option_counts) > 1  # a 'different' chunk has multiple options by definition
-    more_than_one = [seq for seq, count in option_counts if count > 1]
-
-    # If there is only one instance of each sequence, we assess them all.
-    if len(more_than_one) == 0:
-        option_seqs = [seq for seq, count in option_counts]
-
-    # If there are multiple sequences with multiple instances, those are the ones we assess.
-    elif len(more_than_one) > 1:
-        option_seqs = more_than_one
-
-    # There shouldn't be only one sequence with multiple instances (those chunks aren't assessed).
-    else:
-        assert False
 
     with tempfile.TemporaryDirectory() as temp_dir:
         temp_dir = pathlib.Path(temp_dir)
@@ -306,26 +271,37 @@ def choose_best_chunk_option(i, reads, chunks, threads, circular):
             for header, seq, qual in chunk_reads:
                 fastq_file.write(f'@{header}\n{seq}\n+\n{qual}\n')
 
+        scores = {}
+        all_seqs = sorted(''.join(s) for s in chunk.seqs.values())
+        option_seqs = sorted(set(all_seqs))  # get rid of duplicates
+        distances = get_hamming_totals(all_seqs, option_seqs)
+
         counts = collections.defaultdict(int)
         for s in all_seqs:
             counts[s] += 1
 
         # Get the alignment scores for each option.
-        scores = {s: 0 for s in all_seqs_set}
         for option_seq in option_seqs:
-            test_sequence = build_test_sequence(i, chunks, option_seq, circular,
-                                                settings.CHUNK_TEST_MARGIN)
-            alignments = align_reads_to_seq(fastq_filename, test_sequence, threads,
-                                            scores=(1, 1, 1, 1))
-            alignments = get_best_alignment_per_read(alignments)
-            score_sum = sum(a.alignment_score for a in alignments)
-            scores[option_seq] = score_sum
+            if option_seq in chunk.assessment_options:
+                test_sequence = build_test_sequence(i, chunks, option_seq, circular,
+                                                    settings.CHUNK_TEST_MARGIN)
+                alignments = align_reads_to_seq(fastq_filename, test_sequence, threads,
+                                                scores=(1, 1, 1, 1))
+                alignments = get_best_alignment_per_read(alignments)
+                score_sum = sum(a.alignment_score for a in alignments)
+                scores[option_seq] = score_sum
+            else:
+                scores[option_seq] = 0
 
     best_seq = max(scores, key=scores.get)
 
     output_lines = [f'chunk {i + 1}']
-    for seq in all_seqs_set:
-        line = f'  {seq}: count = {counts[seq]}, score = {scores[seq]:,}'
+    for seq in option_seqs:
+        line = f'  {seq}: count = {counts[seq]}, Hamming total = {distances[seq]}'
+        if scores[seq] > 0:
+            line += f', score = {scores[seq]:,}'
+        else:
+            line += ', not assessed'
         if seq == chunk.best_seq:
             line += ', initial'
         if seq == best_seq:
@@ -470,7 +446,9 @@ class Chunk(object):
         self.read_names = set()  # will hold read names relevant for assessing this chunk
         self.best_seq = None  # will hold the chunk's best sequence as a string
         self.had_tie = False  # whether or not this chunk's consensus sequence involved a tie
-        self.needs_assessment = None  # whether or not this chunk will be assessed using reads
+
+        self.needs_assessment = None
+        self.assessment_options = None
 
     def add_bases(self, bases):
         assert self.can_add_bases(bases)
@@ -549,66 +527,58 @@ class Chunk(object):
             new_seqs[name] = seq + additional_seqs[name]
         self.seqs = new_seqs
 
-    def set_best_seq_as_most_common(self):
-        self.best_seq = self.get_most_common_seq()
-
-    def get_most_common_seq(self):
+    def prepare_chunk(self):
         """
-        Returns the chunk's 'best' sequence as a string. For 'same' chunks, this simply means the
-        chunk sequence. For 'different' chunks, this is the most common sequence. If there is a tie
-        for the most common sequence, then we choose whichever sequence has the lowest total
-        distance to the other sequences.
+        This function is run after the chunk has had all of its sequences added. It:
+          * sets an initial best sequence (though this may change later with read-based assessment)
+          * sets whether or not read-based assessment is needed
+          * sets which of the option sequences will be considered during read-bases assessment
         """
-        if self.type is None:
-            return ''
-        elif self.type == 'same':
-            return ''.join(self.seq)
-        else:
-            assert self.type == 'different'
-            options = [''.join(seq) for seq in self.seqs.values()]
-            option_counts = list(collections.Counter(options).items())
-            assert len(option_counts) > 1  # a 'different' chunk has multiple options by definition
-            option_counts = sorted(option_counts, key=lambda x: x[1], reverse=True)
-            best_count = option_counts[0][1]
-            best_options = [x[0] for x in option_counts if x[1] == best_count]
-
-            # If there is a clear winner, then we return that.
-            if len(best_options) == 1:
-                return best_options[0]
-
-            # If there are multiple sequences which tie for the best, then we choose the one with
-            # the smallest total Hamming distance to the other options.
-            hamming_distances = {x: 0 for x in best_options}
-            for x in best_options:
-                for y in options:
-                    hamming_distances[x] += hamming_distance(x, y)
-            hamming_distances = sorted(hamming_distances.items(), key=lambda x: x[1])
-            best_distance = hamming_distances[0][1]
-            best_options = [x[0] for x in hamming_distances if x[1] == best_distance]
-            if len(best_options) == 1:
-                return best_options[0]
-
-            # If there are still multiple sequences, we return the lexicographically first one.
-            self.had_tie = True
-            return sorted(best_options)[0]
-
-    def determine_if_needs_assessment(self):
+        assert self.type is not None
         if self.type == 'same':
-            self.needs_assessment = False
-        else:
-            assert self.type == 'different'
-            options = [''.join(seq) for seq in self.seqs.values()]
-            option_counts = list(collections.Counter(options).items())
-            assert len(option_counts) > 1  # a 'different' chunk has multiple options by definition
-            more_than_one = [seq for seq, count in option_counts if count > 1]
+            self.prepare_same_chunk()
+        elif self.type == 'different':
+            self.prepare_different_chunk()
 
-            if len(more_than_one) == 0:  # only one instance of each option
-                self.needs_assessment = True
-            elif len(more_than_one) > 1:
-                self.needs_assessment = True
-            else:
-                assert len(more_than_one) == 1
-                self.needs_assessment = False
+    def prepare_same_chunk(self):
+        assert self.type == 'same'
+        self.best_seq = ''.join(self.seq)
+        self.needs_assessment = False
+        self.assessment_options = None
+
+    def prepare_different_chunk(self):
+        assert self.type == 'different'
+        all_options = [''.join(seq) for seq in self.seqs.values()]
+        unique_options = list(set(all_options))
+
+        hamming_distances = get_hamming_totals(all_options, unique_options)
+        hamming_distances = sorted(hamming_distances.items(), key=lambda x: x[1])
+        best_hamming_distance = hamming_distances[0][1]
+        best_seqs = [x[0] for x in hamming_distances if x[1] == best_hamming_distance]
+
+        if len(best_seqs) == 1:  # a clear winner
+            self.best_seq = best_seqs[0]
+            self.needs_assessment = False
+            self.assessment_options = None
+
+        else:  # a tie
+            self.needs_assessment = True
+            self.assessment_options = best_seqs
+
+            # Try to break the tie using counts, if possible.
+            counts = {seq: count for seq, count in collections.Counter(all_options).items()
+                      if seq in best_seqs}
+            best_count = max(counts.values())
+            best_seqs = [seq for seq in best_seqs if counts[seq] == best_count]
+            self.best_seq = sorted(best_seqs)[0]  # lexicographically first
+
+
+def get_hamming_totals(all_options, unique_options):
+    hamming_distances = {x: 0 for x in unique_options}
+    for x in unique_options:
+        for y in all_options:
+            hamming_distances[x] += hamming_distance(x, y)
+    return hamming_distances
 
 
 def hamming_distance(s1, s2):
