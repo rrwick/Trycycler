@@ -114,8 +114,8 @@ def make_initial_consensus(chunks):
                 'each of the different chunks. The chosen sequence is the one with the lowest '
                 'total Hamming distance to the other sequences. For example, a chunk with options '
                 'of TT, TT, CC, CC and TA will give a consensus of TT. If the total Hamming '
-                'distances fail to break a tie, the chunk will be flagged for read-based '
-                'assessment.')
+                'distances fail to break a tie or if all sequences differ, the chunk will be '
+                'flagged for read-based assessment.')
     total_length, different_needing_assessment, different_not_needing_assessment = 0, 0, 0
     for i, chunk in enumerate(chunks):
         chunk.prepare_chunk()
@@ -145,6 +145,11 @@ def index_reads(cluster_dir, chunks, consensus_seq_with_gaps, consensus_seq_with
                 'which reads span each of the chunks. This makes the following step faster, as '
                 'only relevant reads will be used when conducting read-based assessment of chunks.')
 
+    needs_assessment_count = len([c for c in chunks if c.needs_assessment])
+    if needs_assessment_count == 0:
+        log('No chunks need read-based assessment. Skipping this step.\n')
+        return
+
     ungapped_to_gapped = make_ungapped_pos_to_gapped_pos_dict(consensus_seq_with_gaps,
                                                               consensus_seq_without_gaps)
     reads = cluster_dir / '4_reads.fastq'
@@ -169,7 +174,6 @@ def index_reads(cluster_dir, chunks, consensus_seq_with_gaps, consensus_seq_with
     log(f'  {len(alignments):,} alignments')
     log()
 
-    needs_assessment_count = len([c for c in chunks if c.needs_assessment])
     chunk_start = 0
     completed = 0
     for chunk in chunks:
@@ -571,6 +575,12 @@ class Chunk(object):
             best_count = max(counts.values())
             best_seqs = [seq for seq in best_seqs if counts[seq] == best_count]
             self.best_seq = sorted(best_seqs)[0]  # lexicographically first
+
+        # If there was only one instance of each option, then we will assess the chunk using all
+        # sequences.
+        if len(all_options) == len(unique_options):
+            self.needs_assessment = True
+            self.assessment_options = all_options
 
 
 def get_hamming_totals(all_options, unique_options):
