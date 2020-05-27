@@ -219,8 +219,12 @@ def choose_best_chunk_options(chunks, cluster_dir, threads, verbose, circular):
                 'alignments (defined as the total alignment score for each of the read\'s best '
                 'alignment) is chosen as the best. This should result in a consensus sequence '
                 'which is more accurate than the initial consensus.')
-    reads = load_fastq_as_dict(cluster_dir)
     needs_assessment_count = len([c for c in chunks if c.needs_assessment])
+    if needs_assessment_count == 0:
+        log('No chunks need read-based assessment. Skipping this step.\n')
+        return
+
+    reads = load_fastq_as_dict(cluster_dir)
 
     new_best_seqs = {}
     completed, kept, changed = 0, 0, 0
