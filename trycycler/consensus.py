@@ -690,7 +690,8 @@ def save_chunks_to_gfa(chunks, filename, input_count, circular, extra_newline=Tr
     chunk_word = 'sequence' if len(chunks) == 1 else 'sequences'
     log(f'Saving {chunk_word} to graph: {filename}')
     with open(filename, 'wt') as gfa:
-        gfa.write('H\tVN:Z:1.0\tbn:Z:--linear --singlearr\n')  # header line with Bandage options
+        linear = '' if circular else '--linear '
+        gfa.write(f'H\tVN:Z:1.0\tbn:Z:{linear}--singlearr\n')  # header line with Bandage options
         link_lines = []
         prev_chunk_names = None
         first_chunk_names, last_chunk_names = [], []
