@@ -116,9 +116,14 @@ def circularise_seq_with_another(seq_a, seq_b, name_a, name_b, args):
     end_alignment, start_alignment, fail_reason = \
         find_end_and_start(seq_a, seq_b, name_a, name_b, args)
     if end_alignment is None or start_alignment is None:
-        start_or_end = 'start' if fail_reason == 'start not found' else 'end'
-        log(f'    unable to circularise: {name_a}\'s {start_or_end} could not be found in {name_b}')
-        return None, fail_reason
+        if fail_reason == 'multiple possibilities':
+            log(f'    unable to circularise: {name_a}\'s start and end were found in multiple '
+                f'places in {name_b}')
+            return None, fail_reason
+        else:
+            side = 'start' if fail_reason == 'start not found' else 'end'
+            log(f'    unable to circularise: {name_a}\'s {side} could not be found in {name_b}')
+            return None, fail_reason
 
     # If we found them with no gap at all (end immediately followed by start), that implies seq A
     # is already cleanly circularised.
