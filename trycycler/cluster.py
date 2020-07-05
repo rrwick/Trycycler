@@ -60,8 +60,8 @@ def finished_message():
 
 def check_inputs_and_requirements(args):
     assembly_lengths = check_input_assemblies(args.assemblies)
-    check_input_reads(args.reads)
     check_output_directory(args.out_dir)
+    check_input_reads(args.reads)
     check_required_software()
     return assembly_lengths
 
