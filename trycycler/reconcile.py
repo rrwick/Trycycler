@@ -56,7 +56,7 @@ def finished_message():
 
 
 def check_inputs_and_requirements(args):
-    check_input_reads(args.reads)
+    check_input_reads(args.reads, file_size_only=True)
     check_cluster_directory(args.cluster_dir)
     check_input_contigs(args.cluster_dir)
     check_required_software()
