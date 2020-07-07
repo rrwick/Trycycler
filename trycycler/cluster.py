@@ -68,7 +68,9 @@ def check_inputs_and_requirements(args):
 
 def check_input_assemblies(filenames):
     if len(filenames) < 2:
-        sys.exit('\nError: two or more input assemblies are required')
+        sys.exit('Error: two or more input assemblies are required')
+    if len(filenames) > 26:
+        sys.exit('Error: you cannot give more than 26 input assemblies')
     log_lines = []
     total_lengths = {}
     for i, f in enumerate(filenames):
