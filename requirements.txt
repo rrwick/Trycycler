@@ -1,5 +1,4 @@
 edlib
-matplotlib
 numpy
 pytest
 scipy
