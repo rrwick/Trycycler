@@ -87,7 +87,7 @@ def test_partition_3():
     assert chunks[2].seq == ['A', 'A', 'A', 'A']
 
 
-def test_get_best_seq_1():
+def test_prepare_chunk_1():
     """
     Tests get_best_seq() on a 'same' chunk: should just return the sequence.
     """
@@ -95,12 +95,12 @@ def test_get_best_seq_1():
     c.add_bases({'1': 'A', '2': 'A', '3': 'A'})
     c.add_bases({'1': 'A', '2': 'A', '3': 'A'})
     c.add_bases({'1': 'A', '2': 'A', '3': 'A'})
-    c.set_best_seq_as_most_common()
+    c.prepare_chunk()
     assert c.best_seq == 'AAA'
     assert not c.had_tie
 
 
-def test_get_best_seq_2():
+def test_prepare_chunk_2():
     """
     Tests get_best_seq() on simple 'different' chunk with a clear winner:
     AAA, AAA and CCC
@@ -109,12 +109,12 @@ def test_get_best_seq_2():
     c.add_bases({'1': 'A', '2': 'A', '3': 'C'})
     c.add_bases({'1': 'A', '2': 'A', '3': 'C'})
     c.add_bases({'1': 'A', '2': 'A', '3': 'C'})
-    c.set_best_seq_as_most_common()
+    c.prepare_chunk()
     assert c.best_seq == 'AAA'
     assert not c.had_tie
 
 
-def test_get_best_seq_3():
+def test_prepare_chunk_3():
     """
     Tests get_best_seq() on 'different' chunk with a tie that can be broken by Hamming distance:
     AAA, AAA, CCC, CCC, CCT
@@ -123,32 +123,9 @@ def test_get_best_seq_3():
     c.add_bases({'1': 'A', '2': 'A', '3': 'C', '4': 'C', '5': 'C'})
     c.add_bases({'1': 'A', '2': 'A', '3': 'C', '4': 'C', '5': 'C'})
     c.add_bases({'1': 'A', '2': 'A', '3': 'C', '4': 'C', '5': 'T'})
-    c.set_best_seq_as_most_common()
+    c.prepare_chunk()
     assert c.best_seq == 'CCC'
     assert not c.had_tie
-
-
-def test_get_best_seq_4():
-    """
-    Tests get_best_seq() on 'different' chunk with a tie that cannot be broken by Hamming distance:
-    AAA, AAA, CCC, CCC, TTT
-    """
-    c = trycycler.consensus.Chunk()
-    c.add_bases({'1': 'A', '2': 'A', '3': 'C', '4': 'C', '5': 'T'})
-    c.add_bases({'1': 'A', '2': 'A', '3': 'C', '4': 'C', '5': 'T'})
-    c.add_bases({'1': 'A', '2': 'A', '3': 'C', '4': 'C', '5': 'T'})
-    c.set_best_seq_as_most_common()
-    assert c.best_seq == 'AAA'
-    assert c.had_tie
-
-
-def test_get_best_seq_5():
-    """
-    Tests get_best_seq() on an empty chunk.
-    """
-    c = trycycler.consensus.Chunk()
-    c.set_best_seq_as_most_common()
-    assert c.best_seq == ''
 
 
 def test_make_ungapped_pos_to_gapped_pos_dict_1():
@@ -184,7 +161,7 @@ def make_chunks_for_test_sequence():
     chunks = trycycler.consensus.partition_msa(msa_seqs, msa_names, msa_length, 0)
     assert len(chunks) == 11
     for chunk in chunks:
-        chunk.set_best_seq_as_most_common()
+        chunk.prepare_chunk()
     assert [c.best_seq for c in chunks] == ['A', 'C', 'GACGAGCAC', 'T', 'GCA', 'G', 'ACGACACGCG',
                                             'A', 'ACTAGCGCA', 'G', 'CATCGC']
     return chunks
@@ -338,27 +315,6 @@ def make_bogus_chunk():
     c = trycycler.consensus.Chunk()
     c.type = 'not_a_type'
     return c
-
-
-def test_has_long_indel_1():
-    c = make_different_chunk()
-    assert c.has_long_indel(1)
-    assert c.has_long_indel(2)
-    assert c.has_long_indel(3)
-    assert not c.has_long_indel(4)
-    assert not c.has_long_indel(5)
-
-
-def test_has_long_indel_2():
-    c = make_same_chunk()
-    assert not c.has_long_indel(1)
-    assert not c.has_long_indel(5)
-
-
-def test_has_long_indel_3():
-    c = make_none_chunk()
-    assert not c.has_long_indel(1)
-    assert not c.has_long_indel(5)
 
 
 def test_get_length_1():
