@@ -4,4 +4,4 @@ Trycycler is a tool for generating consensus long-read assemblies for bacterial 
 
 For installation instructions, usage, deeper explanations and more, head over to the [Trycycler wiki](https://github.com/rrwick/Trycycler/wiki)!
 
-[![License GPL v3](https://img.shields.io/badge/license-GPL%20v3-blue.svg)](https://www.gnu.org/licenses/gpl-3.0.en.html)
+[![License GPL v3](https://img.shields.io/badge/license-GPL%20v3-blue.svg)](https://www.gnu.org/licenses/gpl-3.0.en.html) [![DOI](https://www.zenodo.org/badge/DOI/10.5281/zenodo.3965017.svg)](https://doi.org/10.5281/zenodo.3965017)
