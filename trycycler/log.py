@@ -43,6 +43,10 @@ def bold(text):
     return BOLD + text + END_FORMATTING
 
 
+def bold_yellow(text):
+    return YELLOW + BOLD + text + END_FORMATTING
+
+
 def bold_yellow_underline(text):
     return YELLOW + BOLD + UNDERLINE + text + END_FORMATTING
 
@@ -53,6 +57,10 @@ def dim(text):
 
 def red(text):
     return RED + text + END_FORMATTING
+
+
+def bold_red(text):
+    return RED + BOLD + text + END_FORMATTING
 
 
 def explanation(text, indent_size=4):

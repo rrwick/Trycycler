@@ -17,7 +17,7 @@ import os
 import pathlib
 import sys
 
-from .log import log
+from .log import log, bold_yellow
 
 
 def get_compression_type(filename):
@@ -234,3 +234,15 @@ def check_input_reads(filename, file_size_only=False):
         log(f'  {read_count:,} reads ({total_size:,} bp)')
         log(f'  N50 = {n50:,} bp')
     log()
+
+
+def get_ascii_art():
+    ascii_art = (bold_yellow(" _______                               _\n") +
+                 bold_yellow("|__   __|                             | |\n") +
+                 bold_yellow("   | | _ __  _   _   ___  _   _   ___ | |  ___  _ __\n") +
+                 bold_yellow("   | || '__|| | | | / __|| | | | / __|| | / _ \| '__|\n") +
+                 bold_yellow("   | || |   | |_| || (__ | |_| || (__ | ||  __/| |\n") +
+                 bold_yellow("   |_||_|    \__, | \___| \__, | \___||_| \___||_|\n") +
+                 bold_yellow("              __/ |        __/ |\n") +
+                 bold_yellow("             |___/        |___/\n"))
+    return ascii_art

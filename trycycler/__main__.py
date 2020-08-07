@@ -21,7 +21,7 @@ from .cluster import cluster
 from .consensus import consensus
 from .help_formatter import MyParser, MyHelpFormatter
 from .log import bold
-from .misc import get_default_thread_count, check_python_version
+from .misc import get_default_thread_count, check_python_version, get_ascii_art
 from .msa import msa
 from .partition import partition
 from .version import __version__
@@ -47,8 +47,9 @@ def main():
 
 
 def parse_args(args):
-    parser = MyParser(description=bold('Trycycler: a consensus long-read assembly tool'),
-                      formatter_class=MyHelpFormatter, add_help=False)
+    description = 'R|' + get_ascii_art() + '\n' + \
+                  bold('Trycycler: a consensus long-read assembly tool')
+    parser = MyParser(description=description, formatter_class=MyHelpFormatter, add_help=False)
 
     subparsers = parser.add_subparsers(title='Commands', dest='subparser_name')
     cluster_subparser(subparsers)
