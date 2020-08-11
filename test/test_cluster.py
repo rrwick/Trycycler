@@ -21,6 +21,57 @@ import tempfile
 import trycycler.cluster
 
 
+def test_welcome_message(capsys):
+    trycycler.cluster.welcome_message()
+    _, err = capsys.readouterr()
+    assert 'Trycycler cluster' in err
+
+
+def test_finished_message(capsys):
+    trycycler.cluster.finished_message()
+    _, err = capsys.readouterr()
+    assert 'Finished' in err
+
+
+def test_check_output_directory_1():
+    # Tests successfully making an output directory.
+    with tempfile.TemporaryDirectory() as temp_dir:
+        temp_dir = pathlib.Path(temp_dir)
+        out_dir = temp_dir / 'output'
+        trycycler.cluster.check_output_directory(out_dir)
+        assert out_dir.is_dir()
+
+
+def test_check_output_directory_2():
+    # Tests successfully using an output directory that already exists but is empty.
+    with tempfile.TemporaryDirectory() as temp_dir:
+        temp_dir = pathlib.Path(temp_dir)
+        trycycler.cluster.check_output_directory(temp_dir)
+        assert temp_dir.is_dir()
+
+
+def test_check_output_directory_3():
+    # Tests failing to use an output directory that already exists because it is not empty.
+    with tempfile.TemporaryDirectory() as temp_dir:
+        temp_dir = pathlib.Path(temp_dir)
+        temp_file = temp_dir / 'temp_file'
+        temp_file.touch()
+        with pytest.raises(SystemExit) as e:
+            trycycler.cluster.check_output_directory(temp_dir)
+        assert 'already exists and is not empty' in str(e.value)
+
+
+def test_check_output_directory_4():
+    # Tests failing to use an output directory that already exists because it is a file.
+    with tempfile.TemporaryDirectory() as temp_dir:
+        temp_dir = pathlib.Path(temp_dir)
+        temp_file = temp_dir / 'temp_file'
+        temp_file.touch()
+        with pytest.raises(SystemExit) as e:
+            trycycler.cluster.check_output_directory(temp_file)
+        assert 'already exists as a file' in str(e.value)
+
+
 def test_input_assemblies_1():
     # Tests the function on two FASTAs without problems.
     total_lengths = trycycler.cluster.check_input_assemblies(['test/test_cluster/contigs_1.fasta',
@@ -45,6 +96,13 @@ def test_input_assemblies_3():
 
 
 def test_input_assemblies_4():
+    # Ensures that the function doesn't accept more than 26 assemblies
+    with pytest.raises(SystemExit) as e:
+        trycycler.cluster.check_input_assemblies(['ABC'] * 27)
+    assert 'more than 26' in str(e.value)
+
+
+def test_input_assemblies_5():
     # Ensures that the function doesn't accept non-FASTA files.
     with pytest.raises(SystemExit) as e:
         trycycler.cluster.check_input_assemblies(['test/test_cluster/contigs_1.fasta',
@@ -52,7 +110,7 @@ def test_input_assemblies_4():
     assert 'not in FASTA format' in str(e.value)
 
 
-def test_input_assemblies_5():
+def test_input_assemblies_6():
     # Ensures that the function doesn't accept files which don't exist.
     with pytest.raises(SystemExit) as e:
         trycycler.cluster.check_input_assemblies(['test/test_cluster/contigs_1.fasta',
