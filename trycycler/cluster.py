@@ -107,7 +107,10 @@ def check_output_directory(directory):
     if directory.is_file():
         sys.exit(f'Error: output directory ({directory}) already exists as a file')
     if directory.is_dir():
-        sys.exit(f'Error: output directory ({directory}) already exists')
+        if len(list(directory.iterdir())) > 0:
+            sys.exit(f'Error: output directory ({directory}) already exists and is not empty')
+        else:
+            log(f'Output directory already exists: {directory}')
     else:
         log(f'Creating output directory: {directory}')
         directory.mkdir(parents=True)
