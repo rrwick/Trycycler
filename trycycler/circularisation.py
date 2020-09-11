@@ -192,7 +192,7 @@ def find_end_and_start(seq_a, seq_b, name_a, name_b, args):
     # Look for seq A's end sequence in seq B.
     if args.verbose:
         log(f'    looking for {name_a}\'s end ({seq_a_end_start}-{seq_a_end_end}) in {name_b}...')
-    end_alignments = align_a_to_b(end_seq, seq_b)
+    end_alignments = align_a_to_b(end_seq, seq_b, preset='map-ont')
     end_alignments = [a for a in end_alignments if a.strand == '+'
                       and a.percent_identity >= settings.START_END_IDENTITY_THRESHOLD
                       and a.query_cov >= settings.START_END_COV_THRESHOLD]
