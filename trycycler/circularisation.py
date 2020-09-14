@@ -264,7 +264,7 @@ def find_pre_start_alignment(seq_a, seq_b, name_a, name_b, start_alignment, verb
         if verbose:
             log('      not found')
         return None
-    pre_start_alignments = align_a_to_b(pre_start_seq, seq_a)
+    pre_start_alignments = align_a_to_b(pre_start_seq, seq_a, preset='map-ont')
     pre_start_alignments = [a for a in pre_start_alignments if a.strand == '+'
                             and a.percent_identity >= settings.START_END_IDENTITY_THRESHOLD
                             and a.query_cov >= settings.START_END_COV_THRESHOLD]
