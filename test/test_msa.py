@@ -65,6 +65,14 @@ def test_cluster_directory_is_a_file():
         assert 'already exists as a file' in str(e.value)
 
 
+def test_incomplete_muscle():
+    with tempfile.TemporaryDirectory() as temp_dir:
+        temp_dir = pathlib.Path(temp_dir)
+        with pytest.raises(SystemExit) as e:
+            trycycler.msa.check_muscle_results(temp_dir, 2)
+        assert 'MUSCLE failed to complete' in str(e.value)
+
+
 def create_args(temp_dir, kmer, step, lookahead, threads):
     Args = collections.namedtuple('Args', ['cluster_dir', 'kmer', 'step', 'lookahead', 'threads'])
     return Args(cluster_dir=temp_dir, kmer=kmer, step=step, lookahead=lookahead, threads=threads)

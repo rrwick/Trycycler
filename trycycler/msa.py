@@ -30,8 +30,9 @@ def msa(args):
 
     with tempfile.TemporaryDirectory() as temp_dir:
         temp_dir = pathlib.Path(temp_dir)
-        partition_sequences(seqs, args.kmer, args.step, args.lookahead, temp_dir)
+        piece_count = partition_sequences(seqs, args.kmer, args.step, args.lookahead, temp_dir)
         run_muscle_all_pieces(temp_dir, args.threads)
+        check_muscle_results(temp_dir, piece_count)
         merge_pieces(temp_dir, args.cluster_dir, seqs)
 
 
@@ -75,9 +76,10 @@ def partition_sequences(seqs, kmer, step, lookahead, temp_dir):
     log(f'median piece size: {int(statistics.median(chunk_sizes)):,} bp')
     log(f'max piece size:    {max(chunk_sizes):,} bp')
     log()
+    return len(chunk_sizes)
 
 
-def run_muscle_all_pieces(temp_dir, threads):
+def run_muscle_all_pieces(temp_dir: pathlib.Path, threads):
     section_header('Running Muscle')
     explanation('Trycycler now runs Muscle on each of the pieces to turn them into multiple '
                 'sequence alignments.')
@@ -108,6 +110,17 @@ def run_muscle_one_piece(filenames):
     muscle_command = ['muscle', '-in', input_filename, '-out', output_filename]
     with open(muscle_output_filename, 'wt') as muscle_output:
         subprocess.run(muscle_command, stderr=muscle_output)
+
+
+def check_muscle_results(temp_dir: pathlib.Path, piece_count):
+    missing_files = []
+    for i in range(piece_count):
+        muscle_out_filename = temp_dir / f'{i:012d}_msa.fasta'
+        if not muscle_out_filename.is_file():
+            missing_files.append(muscle_out_filename)
+    if missing_files:
+        sys.exit(f'Error: MUSCLE failed to complete on {len(missing_files)} of the {piece_count} pieces. Please '
+                 f'remove the most divergent sequences from this cluster and then try again.')
 
 
 def find_next_cutoff_positions(seqs, seq_names, first_seq, seq_positions, kmer_size, step,
@@ -143,7 +156,7 @@ def find_next_cutoff_positions(seqs, seq_names, first_seq, seq_positions, kmer_s
         return new_positions
 
 
-def merge_pieces(temp_dir, cluster_dir, seqs):
+def merge_pieces(temp_dir: pathlib.Path, cluster_dir, seqs):
     section_header('Merging MSA')
     explanation('Each of the MSA pieces are now merged together and saved to file.')
     msa_fasta_files = sorted(temp_dir.glob('*_msa.fasta'))
@@ -217,4 +230,3 @@ def check_input_sequences(cluster_dir):
     for name, seq in seqs:
         log(f'  {name}: {len(seq):,} bp')
     log()
-
