@@ -103,7 +103,7 @@ def check_input_assemblies(filenames):
     return total_lengths
 
 
-def check_output_directory(directory):
+def check_output_directory(directory: pathlib.Path):
     if directory.is_file():
         sys.exit(f'Error: output directory ({directory}) already exists as a file')
     if directory.is_dir():

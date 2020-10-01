@@ -88,12 +88,17 @@ def run_muscle_all_pieces(temp_dir, threads):
         input_fasta = str(f)
         output_filename = input_fasta.replace('.fasta', '_msa.fasta')
         filenames.append((input_fasta, output_filename))
-
-    with multiprocessing.Pool(threads) as pool:
-        i = 0
-        for _ in pool.imap_unordered(run_muscle_one_piece, filenames):
+    i = 0
+    if threads == 1:
+        for f in filenames:
+            run_muscle_one_piece(f)
             i += 1
             log(f'\rpieces: {i}', end='')
+    else:
+        with multiprocessing.Pool(threads) as pool:
+            for _ in pool.imap_unordered(run_muscle_one_piece, filenames):
+                i += 1
+                log(f'\rpieces: {i}', end='')
     log('\n')
 
 
@@ -184,7 +189,7 @@ def check_inputs_and_requirements(args):
     check_required_software()
 
 
-def check_cluster_directory(directory):
+def check_cluster_directory(directory: pathlib.Path):
     if directory.is_file():
         sys.exit(f'\nError: output directory ({directory}) already exists as a file')
     if not directory.is_dir():
