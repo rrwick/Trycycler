@@ -19,6 +19,12 @@ import pytest
 import trycycler.consensus
 
 
+def test_welcome_message(capsys):
+    trycycler.consensus.welcome_message()
+    _, err = capsys.readouterr()
+    assert 'Trycycler consensus' in err
+
+
 def test_partition_1():
     msa_names = ['1', '2', '3']
     msa_seqs = {'1': 'AAAAACAAAAAA',

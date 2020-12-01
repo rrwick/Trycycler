@@ -86,7 +86,7 @@ def determine_approx_genome_size(args):
         miniasm_command = ['miniasm', '-f', str(args.reads), str(paf_filename)]
         with open(gfa_filename, 'w') as out:
             subprocess.run(miniasm_command, stdout=out, stderr=dev_null)
-        contig_count, total_size, n50 = get_gfa_stats(gfa_filename)
+        contig_count, total_size, n50 = get_gfa_stats(gfa_filename, 10000)
         log(f'  {contig_count:,} contigs ({total_size:,} bp)')
         log(f'  N50 = {n50:,} bp')
         log()
@@ -96,7 +96,7 @@ def determine_approx_genome_size(args):
     return total_size
 
 
-def get_gfa_stats(gfa_filename):
+def get_gfa_stats(gfa_filename, min_contig_length):
     contig_count, total_size = 0, 0
     seq_lengths = []
     with open(gfa_filename, 'rt') as gfa:
@@ -106,7 +106,7 @@ def get_gfa_stats(gfa_filename):
                 contig_count += 1
                 seq_length = len(parts[2])
                 # Miniasm has a tendency to duplicate small plasmids, so we ignore short contigs.
-                if seq_length >= 10000:
+                if seq_length >= min_contig_length:
                     total_size += seq_length
                 seq_lengths.append(seq_length)
     n50 = get_n50(seq_lengths)
@@ -193,7 +193,7 @@ def save_subsets(reads, count, reads_per_subset, out_dir):
                 subset.add(read_order[j])
         assert len(subset) == reads_per_subset
 
-        filename = out_dir / f'subset_{i:02d}.fastq'
+        filename = out_dir / f'sample_{i:02d}.fastq'
         log(f'  {filename}')
         total_size = 0
         with open(filename, 'wt') as out_file:
