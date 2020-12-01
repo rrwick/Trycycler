@@ -190,11 +190,15 @@ def check_python_version():
         sys.exit('\nError: Trycycler requires Python 3.6 or later')
 
 
-def check_output_directory(directory):
+def check_output_directory(directory: pathlib.Path):
     if directory.is_file():
         sys.exit(f'\nError: output directory ({directory}) already exists as a file')
     if directory.is_dir():
-        log(f'Output directory ({directory}) already exists - files may be overwritten.')
+        if len(list(directory.iterdir())) > 0:
+            log(f'Output directory ({directory}) already exists and is not empty - files may be '
+                f'overwritten.')
+        else:
+            log(f'Output directory already exists: {directory}')
     else:
         log(f'Creating output directory: {directory}')
         directory.mkdir(parents=True)
@@ -229,11 +233,14 @@ def check_input_reads(filename, file_size_only=False):
     if file_size_only:
         file_size = pathlib.Path(filename).stat().st_size
         log(f'  size = {file_size:,} bytes')
+        log()
+        return file_size
     else:
         read_count, total_size, n50 = get_fastq_stats(filename)
         log(f'  {read_count:,} reads ({total_size:,} bp)')
         log(f'  N50 = {n50:,} bp')
-    log()
+        log()
+        return read_count, total_size
 
 
 def get_ascii_art():
@@ -246,3 +253,7 @@ def get_ascii_art():
                  bold_yellow(r"              __/ |        __/ |") + '\n' +
                  bold_yellow(r"             |___/        |___/") + '\n')
     return ascii_art
+
+
+def count_lines(filename):
+    return sum(1 for _ in get_open_func(filename)(filename))

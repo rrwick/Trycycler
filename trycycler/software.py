@@ -18,6 +18,19 @@ import sys
 from .log import log
 
 
+def check_miniasm():
+    try:
+        output = subprocess.check_output(['miniasm', '-V'], stderr=subprocess.STDOUT)
+    except FileNotFoundError:
+        sys.exit('\nError: unable to find miniasm - make sure that miniasm is installed and '
+                 'available on the path, then try again.')
+    except subprocess.CalledProcessError:
+        sys.exit('\nError: unable to determine miniasm version - make sure that miniasm is '
+                 'correctly installed, then try again.')
+    output = output.decode().strip()
+    log(f'  miniasm: v{output}')
+
+
 def check_minimap2():
     try:
         output = subprocess.check_output(['minimap2', '--version'], stderr=subprocess.STDOUT)

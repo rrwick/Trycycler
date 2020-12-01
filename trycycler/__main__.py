@@ -16,21 +16,27 @@ import argparse
 import pathlib
 import sys
 
-from .reconcile import reconcile
+from .subsample import subsample
 from .cluster import cluster
+from .reconcile import reconcile
+from .msa import msa
+from .partition import partition
 from .consensus import consensus
 from .help_formatter import MyParser, MyHelpFormatter
 from .log import bold
 from .misc import get_default_thread_count, check_python_version, get_ascii_art
-from .msa import msa
-from .partition import partition
 from .version import __version__
 
 
 def main():
     check_python_version()
     args = parse_args(sys.argv[1:])
-    if args.subparser_name == 'cluster':
+
+    if args.subparser_name == 'subsample':
+        check_subsample_args(args)
+        subsample(args)
+
+    elif args.subparser_name == 'cluster':
         cluster(args)
 
     elif args.subparser_name == 'reconcile':
@@ -52,6 +58,7 @@ def parse_args(args):
     parser = MyParser(description=description, formatter_class=MyHelpFormatter, add_help=False)
 
     subparsers = parser.add_subparsers(title='Commands', dest='subparser_name')
+    subsample_subparser(subparsers)
     cluster_subparser(subparsers)
     reconcile_subparser(subparsers)
     msa_subparser(subparsers)
@@ -81,8 +88,35 @@ def parse_args(args):
     return parser.parse_args(args)
 
 
+def subsample_subparser(subparsers):
+    group = subparsers.add_parser('subsample', description='subsample a long-read set',
+                                  formatter_class=MyHelpFormatter, add_help=False)
+
+    required_args = group.add_argument_group('Required arguments')
+    required_args.add_argument('-r', '--reads', type=str, required=True,
+                               help='Input long reads (FASTQ format)')
+    required_args.add_argument('-o', '--out_dir', type=pathlib.Path, required=True,
+                               help='Output directory')
+
+    setting_args = group.add_argument_group('Settings')
+    setting_args.add_argument('--count', type=int, default=12,
+                              help='Number of subsampled read sets to output')
+    setting_args.add_argument('--genome_size', type=str, default='auto',
+                              help='Approximate genome size (default: auto)')
+    setting_args.add_argument('--min_read_depth', type=float, default=25.0,
+                              help='Minimum allowed read depth')
+    setting_args.add_argument('-t', '--threads', type=int, default=get_default_thread_count(),
+                              help='Number of threads to use for alignment')
+
+    other_args = group.add_argument_group('Other')
+    other_args.add_argument('-h', '--help', action='help', default=argparse.SUPPRESS,
+                            help='Show this help message and exit')
+    other_args.add_argument('--version', action='version', version='Trycycler v' + __version__,
+                            help="Show program's version number and exit")
+
+
 def cluster_subparser(subparsers):
-    group = subparsers.add_parser('cluster', description='cluster contigs by similarity ',
+    group = subparsers.add_parser('cluster', description='cluster contigs by similarity',
                                   formatter_class=MyHelpFormatter, add_help=False)
 
     required_args = group.add_argument_group('Required arguments')
@@ -249,6 +283,13 @@ def consensus_subparser(subparsers):
 # TODO: parameter checking
 #       --max_length_diff should be >1 and <=2
 #       --max_mash_dist should be >0 and <=1
+
+
+def check_subsample_args(args):
+    if args.count < 2:
+        sys.exit('\nError: --count cannot be less than 2')
+    if args.count > 99:
+        sys.exit('\nError: --count cannot be greater than 99')
 
 
 if __name__ == '__main__':
