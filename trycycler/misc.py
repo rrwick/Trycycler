@@ -237,12 +237,12 @@ def check_input_reads(filename, file_size_only=False):
 
 
 def get_ascii_art():
-    ascii_art = (bold_yellow(" _______                               _\n") +
-                 bold_yellow("|__   __|                             | |\n") +
-                 bold_yellow("   | | _ __  _   _   ___  _   _   ___ | |  ___  _ __\n") +
-                 bold_yellow("   | || '__|| | | | / __|| | | | / __|| | / _ \| '__|\n") +
-                 bold_yellow("   | || |   | |_| || (__ | |_| || (__ | ||  __/| |\n") +
-                 bold_yellow("   |_||_|    \__, | \___| \__, | \___||_| \___||_|\n") +
-                 bold_yellow("              __/ |        __/ |\n") +
-                 bold_yellow("             |___/        |___/\n"))
+    ascii_art = (bold_yellow(r" _______                               _") + '\n' +
+                 bold_yellow(r"|__   __|                             | |") + '\n' +
+                 bold_yellow(r"   | | _ __  _   _   ___  _   _   ___ | |  ___  _ __") + '\n' +
+                 bold_yellow(r"   | || '__|| | | | / __|| | | | / __|| | / _ \| '__|") + '\n' +
+                 bold_yellow(r"   | || |   | |_| || (__ | |_| || (__ | ||  __/| |") + '\n' +
+                 bold_yellow(r"   |_||_|    \__, | \___| \__, | \___||_| \___||_|") + '\n' +
+                 bold_yellow(r"              __/ |        __/ |") + '\n' +
+                 bold_yellow(r"             |___/        |___/") + '\n')
     return ascii_art
