@@ -91,8 +91,7 @@ def iterate_fastq(filename):
             yield name, header, sequence, qualities
 
 
-def load_fastq_as_dict(cluster_dir):
-    read_filename = cluster_dir / '4_reads.fastq'
+def load_fastq_as_dict(read_filename):
     reads = {name: (header, seq, qual) for name, header, seq, qual in iterate_fastq(read_filename)}
     return reads
 
@@ -178,7 +177,7 @@ def reverse_complement(seq):
 
 def remove_duplicates(lst):
     """
-    https://stackoverflow.com/questions/480214/how-do-you-remove-duplicates-from-a-list-whilst-preserving-order
+    https://stackoverflow.com/questions/480214
     """
     seen = set()
     seen_add = seen.add
