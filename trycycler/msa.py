@@ -119,8 +119,9 @@ def check_muscle_results(temp_dir: pathlib.Path, piece_count):
         if not muscle_out_filename.is_file():
             missing_files.append(muscle_out_filename)
     if missing_files:
-        sys.exit(f'Error: MUSCLE failed to complete on {len(missing_files)} of the {piece_count} pieces. Please '
-                 f'remove the most divergent sequences from this cluster and then try again.')
+        sys.exit(f'Error: MUSCLE failed to complete on {len(missing_files)} of the {piece_count} '
+                 f'pieces. Please remove the most divergent sequences from this cluster and then '
+                 f'try again.')
 
 
 def find_next_cutoff_positions(seqs, seq_names, first_seq, seq_positions, kmer_size, step,
