@@ -114,38 +114,6 @@ def test_interpret_genome_size_17():
     assert 'cannot interpret genome size' in str(e.value)
 
 
-def test_get_subset_order_01():
-    assert trycycler.subsample.get_subset_order(1) == [0]
-
-
-def test_get_subset_order_02():
-    assert trycycler.subsample.get_subset_order(2) == [0, 1]
-
-
-def test_get_subset_order_03():
-    assert trycycler.subsample.get_subset_order(3) == [0, 1, 2]
-
-
-def test_get_subset_order_04():
-    assert trycycler.subsample.get_subset_order(4) == [0, 2, 1, 3]
-
-
-def test_get_subset_order_05():
-    assert trycycler.subsample.get_subset_order(5) == [0, 2, 4, 1, 3]
-
-
-def test_get_subset_order_06():
-    assert trycycler.subsample.get_subset_order(6) == [0, 3, 1, 4, 2, 5]
-
-
-def test_get_subset_order_07():
-    assert trycycler.subsample.get_subset_order(7) == [0, 3, 6, 2, 5, 1, 4]
-
-
-def test_get_subset_order_08():
-    assert trycycler.subsample.get_subset_order(8) == [0, 4, 1, 5, 2, 6, 3, 7]
-
-
 def test_calculate_subsets_01():
     assert trycycler.subsample.calculate_subsets(1000, 25000000, 1000000, 25) == 1000
 
@@ -182,10 +150,16 @@ def test_get_gfa_stats():
 
 def test_save_subsets_01():
     output_count = 0
+    read_names = set()
     with tempfile.TemporaryDirectory() as temp_dir:
         temp_dir = pathlib.Path(temp_dir)
         trycycler.subsample.save_subsets('test/test_subsample/reads_1.fastq', 12, 10, temp_dir)
+
         for f in temp_dir.glob('*.fastq'):
             output_count += 1
             assert len(list(trycycler.misc.iterate_fastq(f))) == 10
+            for name, _, _, _ in trycycler.misc.iterate_fastq(f):
+                read_names.add(name)
+
     assert output_count == 12
+    assert len(read_names) == 20

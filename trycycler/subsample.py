@@ -168,14 +168,13 @@ def calculate_subsets(read_count, read_bases, genome_size, min_depth):
 def save_subsets(reads, count, reads_per_subset, out_dir):
     section_header('Subsetting reads')
     explanation('This step shuffles the reads and saves them into subset files.')
-    read_order, read_lengths = shuffle_reads(reads)
+    read_order = shuffle_reads(reads)
     read_count = len(read_order)
 
-    subset_order = get_subset_order(count)
     for i in range(count):
         log(f'subset {i}:')
 
-        start_1 = int(round(subset_order[i] * read_count / count))
+        start_1 = int(round(i * read_count / count))
         end_1 = start_1 + reads_per_subset
         if end_1 > read_count:
             start_2 = 0
@@ -193,7 +192,7 @@ def save_subsets(reads, count, reads_per_subset, out_dir):
                 subset.add(read_order[j])
         assert len(subset) == reads_per_subset
 
-        filename = out_dir / f'sample_{i:02d}.fastq'
+        filename = out_dir / f'sample_{i+1:02d}.fastq'
         log(f'  {filename}')
         total_size = 0
         with open(filename, 'wt') as out_file:
@@ -209,46 +208,8 @@ def save_subsets(reads, count, reads_per_subset, out_dir):
 def shuffle_reads(reads):
     log('Shuffling reads... ', end='')
     read_order = []
-    read_lengths = {}
-    for i, read in enumerate(iterate_fastq(reads)):
-        read_lengths[i] = len(read[2])
+    for i, _ in enumerate(iterate_fastq(reads)):
         read_order.append(i)
     random.shuffle(read_order)
     log('done\n')
-    return read_order, read_lengths
-
-
-def get_subset_order(subset_length):
-    """
-    For a given number of subsets, this function returns an ordering of them to maximise the
-    distances between adjacent members. For example:
-    * subset_length=4: [0, 2, 1, 3]
-    * subset_length=5: [0, 2, 4, 1, 3]
-    * subset_length=6: [0, 3, 1, 4, 2, 5]
-    * subset_length=7: [0, 3, 6, 2, 5, 1, 4]
-    * subset_length=8: [0, 4, 1, 5, 2, 6, 3, 7]
-    * subset_length=9: [0, 4, 8, 3, 7, 2, 6, 1, 5]
-    and so on.
-    """
-    order = []
-    if subset_length % 2 == 0:  # even
-        step_1 = subset_length // 2
-        step_2 = step_1 + 1
-        i = 0
-        while len(order) < subset_length:
-            order.append(i)
-            i += step_1
-            order.append(i)
-            i += step_2
-            assert i >= subset_length
-            i -= subset_length
-    else:  # odd
-        step = (subset_length - 1) // 2
-        i = 0
-        while len(order) < subset_length:
-            order.append(i)
-            i += step
-            if i >= subset_length:
-                i -= subset_length
-    assert list(range(subset_length)) == sorted(order)
-    return order
+    return read_order
