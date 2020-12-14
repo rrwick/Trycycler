@@ -153,7 +153,7 @@ def calculate_subsets(read_count, read_bases, genome_size, min_depth):
         sys.exit('Error: input reads are too shallow to subset')
 
     log('Calculating subset sizes:')
-    log(f'  subset_depth = {min_depth} * log(4 * total_depth / {min_depth}) / (2 * log(2))')
+    log(f'  subset_depth = {min_depth} * log_2(4 * total_depth / {min_depth}) / 2')
     subset_depth = min_depth * math.log(4 * total_depth / min_depth) / (2 * math.log(2))
     log(f'               = {subset_depth:.1f}x')
 
