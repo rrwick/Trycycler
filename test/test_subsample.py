@@ -132,11 +132,8 @@ def test_calculate_subsets_04():
 
 
 def test_shuffle_reads():
-    read_order, read_lengths = \
-        trycycler.subsample.shuffle_reads('test/test_subsample/reads_1.fastq')
+    read_order = trycycler.subsample.shuffle_reads('test/test_subsample/reads_1.fastq')
     assert len(read_order) == 20
-    assert len(read_lengths) == 20
-    assert sum(length for _, length in read_lengths.items()) == 2441
     assert sorted(read_order) == list(range(20))
 
 
