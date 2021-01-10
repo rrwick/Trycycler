@@ -324,7 +324,7 @@ def complete_linkage(seqs, seq_names, depths, distances, threshold, out_dir):
             seq_depth = depths[name]
             with open(seq_fasta, 'wt') as f:
                 f.write(f'>{name}\n')
-                f.write(f'{seq}\n')
+                f.write(f'{seq.upper()}\n')
             log_lines.append((seq_fasta, seq_length, seq_depth))
 
         for seq_fasta, seq_length, seq_depth in log_lines:

@@ -138,7 +138,7 @@ def load_fasta(fasta_filename, include_full_header=False):
                     sequence = []
                 name = line[1:]
             else:
-                sequence.append(line)
+                sequence.append(line.upper())
         if name:
             if include_full_header:
                 fasta_seqs.append((name.split()[0], name, ''.join(sequence)))
@@ -154,7 +154,7 @@ def get_default_thread_count():
 def write_seq_to_fasta(seq, name, filename):
     with open(filename, 'wt') as f:
         f.write(f'>{name}\n')
-        f.write(f'{seq}\n')
+        f.write(f'{seq.upper()}\n')
 
 
 REV_COMP_DICT = {'A': 'T', 'T': 'A', 'G': 'C', 'C': 'G', 'a': 't', 't': 'a', 'g': 'c', 'c': 'g',

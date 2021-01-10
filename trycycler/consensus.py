@@ -681,7 +681,7 @@ def save_seqs_to_fasta(seqs, filename, extra_newline=True):
     with open(filename, 'wt') as fasta:
         for name, seq in seqs.items():
             fasta.write(f'>{name}\n')
-            fasta.write(f'{seq}\n')
+            fasta.write(f'{seq.upper()}\n')
     if extra_newline:
         log()
 

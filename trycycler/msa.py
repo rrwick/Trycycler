@@ -166,7 +166,7 @@ def merge_pieces(temp_dir: pathlib.Path, cluster_dir, seqs):
     for f in msa_fasta_files:
         parts = dict(load_fasta(f))
         for n in seq_names:
-            aligned_seq_parts[n].append(parts[n])
+            aligned_seq_parts[n].append(parts[n].upper())
     aligned_seqs = {}
     for n in seq_names:
         aligned_seqs[n] = ''.join(aligned_seq_parts[n])
@@ -184,7 +184,7 @@ def merge_pieces(temp_dir: pathlib.Path, cluster_dir, seqs):
     # Sanity check: the MSA sequences should match the original sequences.
     for n in seq_names:
         msa_minus_dashes = final_seqs[n].replace('-', '')
-        assert seqs[n] == msa_minus_dashes
+        assert seqs[n].upper() == msa_minus_dashes
 
     # Save the full MSA to file.
     final_msa_fasta_filename = cluster_dir / '3_msa.fasta'

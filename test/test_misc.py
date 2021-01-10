@@ -199,14 +199,34 @@ def test_load_fasta_4():
     assert seqs[1][1].startswith('ATTCTCAGAATGGCGTAG')
 
 
+def test_load_fasta_5():
+    seqs = trycycler.misc.load_fasta('test/test_misc/lowercase.fasta')
+    assert len(seqs) == 2
+    assert seqs[0][0] == 'A'
+    assert seqs[0][1].startswith('TTGCCTGTAGTCGGGACC')
+    assert seqs[1][0] == 'B'
+    assert seqs[1][1].startswith('ATTCTCAGAATGGCGTAG')
+
+
 def test_get_default_thread_count():
     assert 1 <= trycycler.misc.get_default_thread_count() <= 16
 
 
-def test_write_seq_to_fasta():
+def test_write_seq_to_fasta_1():
     with tempfile.TemporaryDirectory() as temp_dir:
         filename = pathlib.Path(temp_dir) / 'temp.fasta'
         trycycler.misc.write_seq_to_fasta('CAGAATGGCGT', 'name', filename)
+        seqs = trycycler.misc.load_fasta(filename)
+        assert len(seqs) == 1
+        assert seqs[0][0] == 'name'
+        assert seqs[0][1] == 'CAGAATGGCGT'
+
+
+def test_write_seq_to_fasta_2():
+    # Same test, but with lowercase bases in input (should be made uppercase in saved file).
+    with tempfile.TemporaryDirectory() as temp_dir:
+        filename = pathlib.Path(temp_dir) / 'temp.fasta'
+        trycycler.misc.write_seq_to_fasta('CAgaaTgGcgt', 'name', filename)
         seqs = trycycler.misc.load_fasta(filename)
         assert len(seqs) == 1
         assert seqs[0][0] == 'name'

@@ -126,3 +126,17 @@ def test_msa_3():
 
     assert aligned_seqs == [('A', 'ATGTAAAGGTTCCGGGGCACTTAGCAGCTCCACAAATCCATT-CCAACCTATA'),
                             ('B', 'ATGTAAAGGTT--GGGGCACTTAGCA-CTCCACACATCCATTGCCAACCTATA')]
+
+
+def test_msa_4():
+    # Same sequences, but with lower case bases (should be made uppercase in alignment).
+    seqs = [('A', 'ATGtAAAGGTTcCGGGGCACttAGCaGCTCCACAaAtCcATTCCAACcTaTA'),
+            ('B', 'ATGTaAaGGtTgGgGCAcTTAGCACTCCaCACATcCAttGCCaACCTATA')]
+    with tempfile.TemporaryDirectory() as temp_dir:
+        temp_dir = pathlib.Path(temp_dir)
+        save_input_sequences(temp_dir, seqs)
+        trycycler.msa.msa(create_args(temp_dir, kmer=32, step=1000, lookahead=10000, threads=8))
+        aligned_seqs = load_fasta(temp_dir / '3_msa.fasta')
+
+    assert aligned_seqs == [('A', 'ATGTAAAGGTTCCGGGGCACTTAGCAGCTCCACAAATCCATT-CCAACCTATA'),
+                            ('B', 'ATGTAAAGGTT--GGGGCACTTAGCA-CTCCACACATCCATTGCCAACCTATA')]
