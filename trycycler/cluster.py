@@ -80,6 +80,8 @@ def check_input_assemblies(filenames):
         seqs = load_fasta(f)
         contig_names = set()
         for contig_name, _ in seqs:
+            if '/' in contig_name:
+                sys.exit(f'\nError: contig names cannot contain a slash character: {contig_name}')
             if contig_name in contig_names:
                 sys.exit(f'\nError: duplicate contig name: {contig_name}')
             contig_names.add(contig_name)
