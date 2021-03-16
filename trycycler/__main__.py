@@ -18,6 +18,7 @@ import sys
 
 from .subsample import subsample
 from .cluster import cluster
+from .dotplot import dotplot
 from .reconcile import reconcile
 from .msa import msa
 from .partition import partition
@@ -38,6 +39,9 @@ def main():
 
     elif args.subparser_name == 'cluster':
         cluster(args)
+
+    elif args.subparser_name == 'dotplot':
+        dotplot(args)
 
     elif args.subparser_name == 'reconcile':
         reconcile(args)
@@ -60,6 +64,7 @@ def parse_args(args):
     subparsers = parser.add_subparsers(title='Commands', dest='subparser_name')
     subsample_subparser(subparsers)
     cluster_subparser(subparsers)
+    dotplot_subparser(subparsers)
     reconcile_subparser(subparsers)
     msa_subparser(subparsers)
     partition_subparser(subparsers)
@@ -138,6 +143,27 @@ def cluster_subparser(subparsers):
                               help='Mash distance complete-linkage clustering threshold')
     setting_args.add_argument('-t', '--threads', type=int, default=get_default_thread_count(),
                               help='Number of threads to use for alignment')
+
+    other_args = group.add_argument_group('Other')
+    other_args.add_argument('-h', '--help', action='help', default=argparse.SUPPRESS,
+                            help='Show this help message and exit')
+    other_args.add_argument('--version', action='version', version='Trycycler v' + __version__,
+                            help="Show program's version number and exit")
+
+
+def dotplot_subparser(subparsers):
+    group = subparsers.add_parser('dotplot', description='draw pairwise dotplots for a cluster',
+                                  formatter_class=MyHelpFormatter, add_help=False)
+
+    required_args = group.add_argument_group('Required arguments')
+    required_args.add_argument('-c', '--cluster_dir', type=pathlib.Path, required=True,
+                               help='Cluster directory (should contain a 1_contigs subdirectory)')
+
+    setting_args = group.add_argument_group('Settings')
+    setting_args.add_argument('--kmer', type=int, default=32,
+                              help='K-mer size to use in dot plots')
+    setting_args.add_argument('--dot_plot_res', type=int, default=2000,
+                              help='Size (in pixels) of each dot plot image')
 
     other_args = group.add_argument_group('Other')
     other_args.add_argument('-h', '--help', action='help', default=argparse.SUPPRESS,

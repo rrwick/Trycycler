@@ -1,4 +1,5 @@
 edlib
 numpy
+PIL
 pytest
 scipy
