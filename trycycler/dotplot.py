@@ -11,9 +11,11 @@ details. You should have received a copy of the GNU General Public License along
 If not, see <http://www.gnu.org/licenses/>.
 """
 
+import collections
 from PIL import Image, ImageDraw, ImageFont
 
 from .log import log, section_header, explanation
+from .misc import reverse_complement
 from .reconcile import check_cluster_directory, check_input_contigs, load_contig_sequences
 
 
@@ -21,14 +23,14 @@ from .reconcile import check_cluster_directory, check_input_contigs, load_contig
 INITIAL_TOP_LEFT_GAP = 200
 BORDER_GAP = 30
 BETWEEN_SEQ_GAP = 30
-OUTLINE_WIDTH = 5
+OUTLINE_WIDTH = 4
 TEXT_GAP = 5
 BACKGROUND_COLOUR = (235, 235, 235)
 SELF_VS_SELF_COLOUR = (220, 220, 220)
 SELF_VS_OTHER_COLOUR = 'white'
 TEXT_COLOUR = 'black'
-FORWARD_STRAND_DOT_COLOUR = 'blue'
-REVERSE_STRAND_DOT_COLOUR = 'red'
+FORWARD_STRAND_DOT_COLOUR = (0, 0, 127)
+REVERSE_STRAND_DOT_COLOUR = (127, 0, 0)
 MAX_FONT_SIZE = 50
 
 
@@ -75,7 +77,7 @@ def create_dotplots(seq_names, seqs, args):
 
     # We create an initial image to test the label sizes.
     start_positions, end_positions, bp_per_pixel = \
-        get_positions(args, seq_names, seqs, INITIAL_TOP_LEFT_GAP, BORDER_GAP)
+        get_positions(args, seq_names, seqs, args.kmer, INITIAL_TOP_LEFT_GAP, BORDER_GAP)
     image = Image.new('RGB', (args.dot_plot_res, args.dot_plot_res), BACKGROUND_COLOUR)
     min_font_size, max_text_height = \
         draw_labels(image, seq_names, start_positions, end_positions, font_size=None)
@@ -85,7 +87,7 @@ def create_dotplots(seq_names, seqs, args):
     # top-left gap (so it isn't bigger than necessary).
     new_top_left_gap = max_text_height + BORDER_GAP
     start_positions, end_positions, bp_per_pixel = \
-        get_positions(args, seq_names, seqs, new_top_left_gap, BORDER_GAP)
+        get_positions(args, seq_names, seqs, args.kmer, new_top_left_gap, BORDER_GAP)
     image = Image.new('RGB', (args.dot_plot_res, args.dot_plot_res), BACKGROUND_COLOUR)
     draw_sequence_boxes(image, seq_names, start_positions, end_positions)
     draw_labels(image, seq_names, start_positions, end_positions, font_size=min_font_size)
@@ -95,7 +97,7 @@ def create_dotplots(seq_names, seqs, args):
         for name_b in seq_names:
             seq_b = seqs[name_b]
             log(f'  {name_a} vs {name_b}')
-            draw_dots(image, name_a, name_b, seq_a, seq_b, start_positions, bp_per_pixel)
+            draw_dots(image, name_a, name_b, seq_a, seq_b, start_positions, bp_per_pixel, args.kmer)
 
     # The boxes are drawn once more, this time with no fill. This is to overwrite any dots which
     # leaked into the outline, which would look messy.
@@ -105,14 +107,14 @@ def create_dotplots(seq_names, seqs, args):
     return image
 
 
-def get_positions(args, seq_names, seqs, top_left_gap, bottom_right_gap):
+def get_positions(args, seq_names, seqs, kmer_size, top_left_gap, bottom_right_gap):
     """
     This function returns the image coordinates that start/end each sequence. Since the dot plot is
     symmetrical, there is only one start/end per sequence (used for both x and y coordinates).
     """
     all_gaps = top_left_gap + bottom_right_gap + BETWEEN_SEQ_GAP * (len(seq_names) - 1)
     pixels_for_sequence = args.dot_plot_res - all_gaps
-    total_seq_length = sum(len(seqs[n]) for n in seq_names)
+    total_seq_length = sum(len(seqs[n]) - kmer_size for n in seq_names)
     bp_per_pixel = total_seq_length / pixels_for_sequence
 
     start_positions, end_positions = {}, {}
@@ -183,15 +185,49 @@ def draw_labels(image, seq_names, start_positions, end_positions, font_size):
     return min(font_sizes), max(text_heights)
 
 
-def draw_dots(image, name_a, name_b, seq_a, seq_b, start_positions, bp_per_pixel):
-    draw = ImageDraw.Draw(image)
-    # TODO
-    # TODO
-    # TODO
-    # TODO
-    # TODO
-    # TODO
-    # TODO
+def draw_dots(image, name_a, name_b, seq_a, seq_b, start_positions, bp_per_pixel, kmer_size):
+    pixels = image.load()
+    # draw = ImageDraw.Draw(image)
+    a_start_pos = start_positions[name_a]
+    b_start_pos = start_positions[name_b]
+
+    a_forward_kmers, a_reverse_kmers = get_all_kmer_positions(kmer_size, seq_a)
+
+    for j in range(len(seq_b) - kmer_size + 1):
+        j_pixel = int(round(j / bp_per_pixel)) + b_start_pos
+        k = seq_b[j:j+kmer_size]
+        if k in a_reverse_kmers:
+            for i in a_reverse_kmers[k]:
+                i_pixel = int(round(i / bp_per_pixel)) + a_start_pos
+                pixels[i_pixel, j_pixel] = REVERSE_STRAND_DOT_COLOUR
+                # pixels[i_pixel+1, j_pixel] = REVERSE_STRAND_DOT_COLOUR
+                # pixels[i_pixel-1, j_pixel] = REVERSE_STRAND_DOT_COLOUR
+                # pixels[i_pixel, j_pixel+1] = REVERSE_STRAND_DOT_COLOUR
+                # pixels[i_pixel, j_pixel-1] = REVERSE_STRAND_DOT_COLOUR
+                # draw.point((i_pixel, j_pixel), fill=REVERSE_STRAND_DOT_COLOUR)
+        if k in a_forward_kmers:
+            for i in a_forward_kmers[k]:
+                i_pixel = int(round(i / bp_per_pixel)) + a_start_pos
+                pixels[i_pixel, j_pixel] = FORWARD_STRAND_DOT_COLOUR
+                # pixels[i_pixel+1, j_pixel] = FORWARD_STRAND_DOT_COLOUR
+                # pixels[i_pixel-1, j_pixel] = FORWARD_STRAND_DOT_COLOUR
+                # pixels[i_pixel, j_pixel+1] = FORWARD_STRAND_DOT_COLOUR
+                # pixels[i_pixel, j_pixel-1] = FORWARD_STRAND_DOT_COLOUR
+                # draw.point((i_pixel, j_pixel), fill=FORWARD_STRAND_DOT_COLOUR)
+
+
+def get_all_kmer_positions(kmer_size, seq):
+    forward_kmers, reverse_kmers = collections.defaultdict(list), collections.defaultdict(list)
+    rev_comp_seq = reverse_complement(seq)
+    seq_len = len(seq) - kmer_size + 1
+    for i in range(seq_len):
+        k = seq[i:i+kmer_size]
+        forward_kmers[k].append(i)
+        k = rev_comp_seq[i:i+kmer_size]
+        reverse_kmers[k].append(seq_len - i)
+    assert len(forward_kmers) < len(seq)
+    assert len(reverse_kmers) < len(seq)
+    return forward_kmers, reverse_kmers
 
 
 def get_font(draw, label, font_size, start_position, end_position):
