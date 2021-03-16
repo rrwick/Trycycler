@@ -41,6 +41,7 @@ def main():
         cluster(args)
 
     elif args.subparser_name == 'dotplot':
+        check_dotplot_args(args)
         dotplot(args)
 
     elif args.subparser_name == 'reconcile':
@@ -162,7 +163,7 @@ def dotplot_subparser(subparsers):
     setting_args = group.add_argument_group('Settings')
     setting_args.add_argument('--kmer', type=int, default=32,
                               help='K-mer size to use in dot plots')
-    setting_args.add_argument('--dot_plot_res', type=int, default=2000,
+    setting_args.add_argument('--res', type=int, default=2000,
                               help='Size (in pixels) of each dot plot image')
 
     other_args = group.add_argument_group('Other')
@@ -316,6 +317,13 @@ def check_subsample_args(args):
         sys.exit('\nError: --count cannot be less than 2')
     if args.count > 99:
         sys.exit('\nError: --count cannot be greater than 99')
+
+
+def check_dotplot_args(args):
+    if args.res < 500 or args.res > 10000:
+        sys.exit('\nError: --res must be between 500 and 10000 (inclusive)')
+    if args.kmer < 8 or args.kmer > 100:
+        sys.exit('\nError: --res must be between 8 and 100 (inclusive)')
 
 
 if __name__ == '__main__':

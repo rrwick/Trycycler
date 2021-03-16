@@ -74,9 +74,9 @@ def load_contig_sequences(cluster_dir):
     return contig_seqs, fasta_names
 
 
-def check_input_contigs(cluster_dir):
+def check_input_contigs(cluster_dir, require_two_or_more=True):
     filenames = get_contigs_from_cluster_dir(cluster_dir)
-    if len(filenames) < 2:
+    if require_two_or_more and len(filenames) < 2:
         sys.exit('\nError: two or more input contigs are required')
     if len(filenames) > settings.MAX_INPUT_CONTIGS:
         sys.exit(f'\nError: you cannot have more than {settings.MAX_INPUT_CONTIGS} input contigs')
