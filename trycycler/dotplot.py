@@ -233,7 +233,7 @@ def get_all_kmer_positions(kmer_size, seq):
         k = seq[i:i+kmer_size]
         forward_kmers[k].append(i)
         k = rev_comp_seq[i:i+kmer_size]
-        reverse_kmers[k].append(seq_len - i)
+        reverse_kmers[k].append(seq_len - i - 1)
     assert len(forward_kmers) < len(seq)
     assert len(reverse_kmers) < len(seq)
     return forward_kmers, reverse_kmers
