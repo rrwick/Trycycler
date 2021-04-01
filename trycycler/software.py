@@ -108,10 +108,10 @@ def check_ape():
         output = subprocess.check_output(['R', '--quiet', '-e', 'packageVersion("ape")'],
                                          stderr=subprocess.STDOUT)
     except (FileNotFoundError, subprocess.CalledProcessError):
-        sys.exit('\nError: unable to run R - make sure that R is correctly installed, then try '
-                 'again.')
+        sys.exit('\nError: unable to find ape - make sure that the "ape" package is installed '
+                 'for your R installation, then try again.')
     output = output.decode().strip()
-    if 'there is no package' in output:
+    if 'there is no package' in output or 'not found' in output:
         sys.exit('\nError: unable to find ape - make sure that the "ape" package is installed '
                  'for your R installation, then try again.')
     version = parse_ape_version(output)
@@ -132,10 +132,10 @@ def check_phangorn():
         output = subprocess.check_output(['R', '--quiet', '-e', 'packageVersion("phangorn")'],
                                          stderr=subprocess.STDOUT)
     except (FileNotFoundError, subprocess.CalledProcessError):
-        sys.exit('\nError: unable to run R - make sure that R is correctly installed, then try '
-                 'again.')
+        sys.exit('\nError: unable to find ape - make sure that the "phangorn" package is '
+                 'installed for your R installation, then try again.')
     output = output.decode().strip()
-    if 'there is no package' in output:
+    if 'there is no package' in output or 'not found' in output:
         sys.exit('\nError: unable to find ape - make sure that the "phangorn" package is '
                  'installed for your R installation, then try again.')
     version = parse_phangorn_version(output)
