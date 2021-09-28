@@ -1,5 +1,5 @@
 edlib
 numpy
-PIL
+pillow
 pytest
 scipy
