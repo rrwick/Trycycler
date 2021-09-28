@@ -278,7 +278,11 @@ def create_tree_script(temp_dir, phylip):
         f.write('tree$edge.length <- pmax(tree$edge.length, 0.0)\n')
         f.write('tree <- midpoint(tree)\n')
         f.write(f'write.tree(tree, "{newick}")\n')
-    return str(tree_script), pathlib.Path(newick).relative_to(pathlib.Path.cwd())
+    try:
+        newick_path = pathlib.Path(newick).relative_to(pathlib.Path.cwd())
+    except ValueError:
+        newick_path = pathlib.Path(newick)
+    return str(tree_script), newick_path
 
 
 def complete_linkage(seqs, seq_names, depths, distances, threshold, out_dir):

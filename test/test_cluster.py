@@ -223,3 +223,26 @@ def test_get_contig_depths_3():
                                             8, assembly_lengths, 0.1)
     assert 1.9 < depths['A_A_B_C'] < 2.1
     assert depth_filter == {'A_A_B_C': True}
+
+
+def test_build_tree():
+    seq_names = ['A', 'B', 'C']
+    seqs = {'A': 'ACGACTACG',
+            'B': 'ACGCCTGCG',
+            'C': 'ACGCCTTCG'}
+    depths = {'A': 50, 'B': 50, 'C': 50}
+    matrix = {('A', 'A'): 0.0, ('B', 'B'): 0.0, ('C', 'C'): 0.0,
+              ('A', 'B'): 0.2, ('B', 'A'): 0.2,
+              ('A', 'C'): 0.2, ('C', 'A'): 0.2,
+              ('B', 'C'): 0.1, ('C', 'B'): 0.1}
+    cluster_numbers = {'A': 1, 'B': 2, 'C': 2}
+    with tempfile.TemporaryDirectory() as temp_dir:
+        temp_dir = pathlib.Path(temp_dir)
+        trycycler.cluster.build_tree(seq_names, seqs, depths, matrix, temp_dir, cluster_numbers)
+        matrix_file = temp_dir / 'contigs.phylip'
+        tree_file = temp_dir / 'contigs.newick'
+        assert matrix_file.is_file() and tree_file.is_file()
+        with open(tree_file, 'rt') as t:
+            tree_str = t.read()
+        assert '9_bp' in tree_str
+        assert '_50.0x:' in tree_str
