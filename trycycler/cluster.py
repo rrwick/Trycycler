@@ -270,7 +270,7 @@ def create_tree_script(temp_dir, phylip):
     newick = phylip.replace('.phylip', '.newick')
     tree_script = temp_dir / 'tree.R'
     with open(tree_script, 'wt') as f:
-        f.write('#!/usr/bin/Rscript\n')
+        f.write('#!/usr/bin/env Rscript\n')
         f.write('library(ape)\n')
         f.write('library(phangorn)\n')
         f.write(f'distances <- readDist("{phylip}")\n')
