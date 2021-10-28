@@ -245,7 +245,7 @@ def get_font(draw, label, font_size, start_position, end_position):
     # If we had to resort to the default font, then we can't size it.
     if is_default_font:
         text_width, text_height = draw.textsize(label, font=font)
-        return font, text_width, text_height
+        return font, text_width, text_height, font_size
 
     # If we have a size-able font, then we adjust the size down until the text fits in the
     # available space.
@@ -259,6 +259,13 @@ def get_font(draw, label, font_size, start_position, end_position):
 
 
 def load_font(font_size):
+    """
+    This function loads a font, but it has to try a few different ones because different platforms
+    have different fonts:
+    * DejaVuSans.ttf: is in Ubuntu 20.04 and CentOS 7
+    * OpenSans-Regular.ttf: is in CentOS 7
+    * Arial.ttf: is in MacOS 11
+    """
     try:
         return ImageFont.truetype('DejaVuSans.ttf', font_size), False
     except OSError:
