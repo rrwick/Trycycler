@@ -261,10 +261,7 @@ def get_font(draw, label, font_size, start_position, end_position):
 def load_font(font_size):
     """
     This function loads a font, but it has to try a few different ones because different platforms
-    have different fonts:
-    * DejaVuSans.ttf: is in Ubuntu 20.04 and CentOS 7
-    * OpenSans-Regular.ttf: is in CentOS 7
-    * Arial.ttf: is in MacOS 11
+    have different fonts.
     """
     try:
         return ImageFont.truetype('DejaVuSans.ttf', font_size), False
@@ -276,6 +273,26 @@ def load_font(font_size):
         pass
     try:
         return ImageFont.truetype('Arial.ttf', font_size), False
+    except OSError:
+        pass
+    try:
+        return ImageFont.truetype('LiberationSans-Regular.ttf', font_size), False
+    except OSError:
+        pass
+    try:
+        return ImageFont.truetype('NimbusSans-Regular.otf', font_size), False
+    except OSError:
+        pass
+    try:
+        return ImageFont.truetype('Verdana.ttf', font_size), False
+    except OSError:
+        pass
+    try:
+        return ImageFont.truetype('Lato-Regular.ttf', font_size), False
+    except OSError:
+        pass
+    try:
+        return ImageFont.truetype('FreeSans.ttf', font_size), False
     except OSError:
         pass
     return ImageFont.load_default(), True
