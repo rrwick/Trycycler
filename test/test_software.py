@@ -23,6 +23,11 @@ def test_parse_muscle_version_1():
 
 
 def test_parse_muscle_version_2():
+    output = 'muscle 5.0.1430_osx64'
+    assert trycycler.software.parse_muscle_version(output) == '5.0.1430'
+
+
+def test_parse_muscle_version_3():
     output = 'Not the correct output'
     assert trycycler.software.parse_muscle_version(output) == '?'
 

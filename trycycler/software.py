@@ -59,9 +59,13 @@ def check_muscle():
 
 
 def parse_muscle_version(output):
-    if 'MUSCLE v' in output:
+    if 'MUSCLE v' in output:  # for version 3
         output = output.split('MUSCLE v')[1]
         output = output.split(' ')[0]
+        return output.strip()
+    elif 'muscle ' in output:  # For version 5
+        output = output.split('muscle ')[1]
+        output = output.split('_')[0]
         return output.strip()
     else:
         return '?'
