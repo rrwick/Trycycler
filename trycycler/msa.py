@@ -20,7 +20,7 @@ import tempfile
 
 from .log import log, section_header, explanation
 from .misc import load_fasta, count_substrings, get_sequence_file_type
-from .software import check_muscle
+from .software import check_muscle, get_muscle_version
 
 
 def msa(args):
@@ -84,30 +84,36 @@ def run_muscle_all_pieces(temp_dir: pathlib.Path, threads):
     explanation('Trycycler now runs Muscle on each of the pieces to turn them into multiple '
                 'sequence alignments.')
     fasta_files = sorted(temp_dir.glob('*.fasta'))
+    muscle_version = get_muscle_version()
 
-    filenames = []
+    parameters = []
     for f in fasta_files:
         input_fasta = str(f)
         output_filename = input_fasta.replace('.fasta', '_msa.fasta')
-        filenames.append((input_fasta, output_filename))
+        parameters.append((input_fasta, output_filename, muscle_version))
     i = 0
     if threads == 1:
-        for f in filenames:
+        for f in parameters:
             run_muscle_one_piece(f)
             i += 1
             log(f'\rpieces: {i}', end='')
     else:
         with multiprocessing.Pool(threads) as pool:
-            for _ in pool.imap_unordered(run_muscle_one_piece, filenames):
+            for _ in pool.imap_unordered(run_muscle_one_piece, parameters):
                 i += 1
                 log(f'\rpieces: {i}', end='')
     log('\n')
 
 
-def run_muscle_one_piece(filenames):
-    input_filename, output_filename = filenames
+def run_muscle_one_piece(parameters):
+    input_filename, output_filename, muscle_version = parameters
     muscle_output_filename = output_filename.replace('_msa.fasta', '_muscle.out')
-    muscle_command = ['muscle', '-in', input_filename, '-out', output_filename]
+    if muscle_version.startswith('3'):
+        muscle_command = ['muscle', '-in', input_filename, '-out', output_filename]
+    elif muscle_version.startswith('5'):
+        muscle_command = ['muscle', '-align', input_filename, '-output', output_filename]
+    else:
+        assert False
     with open(muscle_output_filename, 'wt') as muscle_output:
         subprocess.run(muscle_command, stderr=muscle_output)
 

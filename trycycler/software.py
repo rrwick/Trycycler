@@ -56,6 +56,18 @@ def check_muscle():
     output = output.decode().strip()
     version = parse_muscle_version(output)
     log(f'   MUSCLE: v{version}')
+    if not version.startswith('3') and not version.startswith('5'):
+        sys.exit('\nError: either MUSCLE v3 or MUSCLE v5 is required')
+
+
+def get_muscle_version():
+    """
+    This function assumes that the check_muscle function has already been run, so it doesn't catch
+    exceptions.
+    """
+    output = subprocess.check_output(['muscle', '-version'], stderr=subprocess.STDOUT)
+    output = output.decode().strip()
+    return parse_muscle_version(output)
 
 
 def parse_muscle_version(output):
