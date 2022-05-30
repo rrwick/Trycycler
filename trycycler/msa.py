@@ -124,6 +124,8 @@ def check_muscle_results(temp_dir: pathlib.Path, piece_count):
         muscle_out_filename = temp_dir / f'{i:012d}_msa.fasta'
         if not muscle_out_filename.is_file():
             missing_files.append(muscle_out_filename)
+        elif muscle_out_filename.stat().st_size == 0:  # file is empty
+            missing_files.append(muscle_out_filename)
     if missing_files:
         sys.exit(f'Error: MUSCLE failed to complete on {len(missing_files)} of the {piece_count} '
                  f'pieces. Please remove the most divergent sequences from this cluster and then '

@@ -65,9 +65,23 @@ def test_cluster_directory_is_a_file():
         assert 'already exists as a file' in str(e.value)
 
 
-def test_incomplete_muscle():
+def test_incomplete_muscle_1():
+    # Tests missing files.
     with tempfile.TemporaryDirectory() as temp_dir:
         temp_dir = pathlib.Path(temp_dir)
+        with pytest.raises(SystemExit) as e:
+            trycycler.msa.check_muscle_results(temp_dir, 2)
+        assert 'MUSCLE failed to complete' in str(e.value)
+
+
+def test_incomplete_muscle_2():
+    # Tests empty files.
+    with tempfile.TemporaryDirectory() as temp_dir:
+        temp_dir = pathlib.Path(temp_dir)
+        file_0 = temp_dir / f'{0:012d}_msa.fasta'
+        open(file_0, 'a').close()
+        file_1 = temp_dir / f'{1:012d}_msa.fasta'
+        open(file_1, 'a').close()
         with pytest.raises(SystemExit) as e:
             trycycler.msa.check_muscle_results(temp_dir, 2)
         assert 'MUSCLE failed to complete' in str(e.value)
