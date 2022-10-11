@@ -78,6 +78,7 @@ def parse_muscle_version(output):
     elif 'muscle ' in output:  # For version 5
         output = output.split('muscle ')[1]
         output = output.split('_')[0]
+        output = output.split('\n')[0]
         return output.strip()
     else:
         return '?'

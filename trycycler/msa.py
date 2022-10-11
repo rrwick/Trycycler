@@ -111,7 +111,8 @@ def run_muscle_one_piece(parameters):
     if muscle_version.startswith('3'):
         muscle_command = ['muscle', '-in', input_filename, '-out', output_filename]
     elif muscle_version.startswith('5'):
-        muscle_command = ['muscle', '-align', input_filename, '-output', output_filename]
+        muscle_command = ['muscle', '-align', input_filename, '-output', output_filename,
+                          '-threads', '1']
     else:
         assert False
     with open(muscle_output_filename, 'wt') as muscle_output:
