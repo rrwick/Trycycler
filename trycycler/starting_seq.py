@@ -40,6 +40,10 @@ def flip_seqs_as_necessary(seqs, common_seq):
     for seq_name, seq in seqs.items():
         log(f'{seq_name}: ', end=' ' * (longest_seq_name - len(seq_name)))
         alignments = align_a_to_b(common_seq, seq, preset='map-ont')
+        alignments = [a for a in alignments
+                      if a.percent_identity >= settings.KNOWN_STARTING_SEQ_MIN_IDENTITY
+                      and a.query_cov >= settings.KNOWN_STARTING_SEQ_MIN_COVERAGE
+                      and a.query_start == 0]
         assert len(alignments) == 1
         strand = alignments[0].strand
         if strand == '+':
