@@ -45,7 +45,7 @@ def welcome_message():
 
 def finished_message():
     section_header('Finished!')
-    explanation('Now you must now assemble each of the subsampled read sets to produce a set of '
+    explanation('You must now assemble each of the subsampled read sets to produce a set of '
                 'assemblies you can input into Trycycler cluster.')
 
 
