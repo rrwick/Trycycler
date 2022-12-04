@@ -215,8 +215,8 @@ def reconcile_subparser(subparsers):
     final_check_args = group.add_argument_group('Final check')
     final_check_args.add_argument('--min_identity', type=float, default=98.0,
                                   help='Minimum allowed pairwise percent identity')
-    final_check_args.add_argument('--max_indel_size', type=int, default=1000,
-                                  help='Maximum allowed pairwise indel size')
+    final_check_args.add_argument('--min_1kbp_identity', type=int, default=25.0,
+                                  help='Minimum allowed pairwise 1kbp window identity')
 
     other_args = group.add_argument_group('Other')
     other_args.add_argument('-h', '--help', action='help', default=argparse.SUPPRESS,

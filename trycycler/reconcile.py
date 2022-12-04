@@ -36,9 +36,9 @@ def reconcile(args):
         seqs = circularise(seqs, args)
         seqs, starting_seq = get_starting_seq(seqs, args.threads)
         seqs = rotate_to_starting_seq(seqs, starting_seq)
-    pairwise_cigars, percent_identities, max_indels = get_pairwise_alignments(seqs)
+    pairwise_cigars, percent_identities, worst_1kbp_identities = get_pairwise_alignments(seqs)
     print_identity_matrix(seqs, percent_identities, args.min_identity)
-    print_max_indel_matrix(seqs, max_indels, args.max_indel_size)
+    print_worst_1kbp_matrix(seqs, worst_1kbp_identities, args.min_1kbp_identity)
     finished_message()
     save_seqs_to_fasta(seqs, args.cluster_dir / '2_all_seqs.fasta')
 
@@ -131,7 +131,7 @@ def save_seqs_to_fasta(seqs, filename):
 
 
 def print_identity_matrix(seqs, percent_identities, min_allowed_identity):
-    log('Pairwise identities:')
+    log('Overall pairwise identities:')
     seq_names = sorted(seqs.keys())
     max_seq_name_len = max(len(x) for x in seq_names)
     failed = False
@@ -143,7 +143,7 @@ def print_identity_matrix(seqs, percent_identities, min_allowed_identity):
                 identity = 100.0
             else:
                 identity = percent_identities[(a, b)]
-            identity_str = f'{identity:.2f}%'.rjust(7)
+            identity_str = f'{identity:.3f}%'.rjust(8)
             if a == b:
                 log(dim(identity_str), end='')
             elif identity < min_allowed_identity:
@@ -161,33 +161,32 @@ def print_identity_matrix(seqs, percent_identities, min_allowed_identity):
                         f'the --min_identity threshold and try again.')
 
 
-def print_max_indel_matrix(seqs, max_indels, max_allowed_indel):
-    log('Maximum insertion/deletion sizes:')
+def print_worst_1kbp_matrix(seqs, worst_1kbp_identities, min_allowed_1kbp_identity):
+    log('Worst-1kbp pairwise identities:')
     seq_names = sorted(seqs.keys())
     max_seq_name_len = max(len(x) for x in seq_names)
-    longest_indel_str_len = max(len(str(i)) for i in max_indels.values())
     failed = False
     for a in seq_names:
         log('  ' + a, end=':')
         log(' ' * (max_seq_name_len - len(a)), end=' ')
         for b in seq_names:
             if a == b:
-                max_indel = 0
+                identity = 100.0
             else:
-                max_indel = max_indels[(a, b)]
-            max_indel_str = str(max_indel).rjust(longest_indel_str_len)
+                identity = worst_1kbp_identities[(a, b)]
+            identity_str = f'{identity:.1f}%'.rjust(6)
             if a == b:
-                log(dim(max_indel_str), end='')
-            elif max_indel > max_allowed_indel:
-                log(red(max_indel_str), end='')
+                log(dim(identity_str), end='')
+            elif identity < min_allowed_1kbp_identity:
+                log(red(identity_str), end='')
                 failed = True
             else:
-                log(max_indel_str, end='')
+                log(identity_str, end='')
             if b != seq_names[-1]:  # if not the last one in the row
                 log('  ', end='')
         log()
     log()
     if failed:
-        quit_with_error(f'Error: some pairwise indels are greater than the maximum allowed '
-                        f'value of {max_allowed_indel}. Please remove offending sequences or '
-                        f'raise the --max_indel_size threshold and try again.')
+        quit_with_error(f'Error: some pairwise worst-1kbp identities are below the minimum '
+                        f'allowed value of {min_allowed_1kbp_identity}%. Please remove offending '
+                        f'sequences or lower the --min_1kbp_identity threshold and try again.')
