@@ -148,7 +148,11 @@ def load_fasta(fasta_filename, include_full_header=False):
 
 
 def get_default_thread_count():
-    return min(multiprocessing.cpu_count(), 16)
+    try:
+        num_cpus = len(os.sched_getaffinity(0))  # available on some *nix platforms
+    except AttributeError:
+        num_cpus = multiprocessing.cpu_count()   # available everywhere
+    return min(num_cpus, 16)
 
 
 def write_seq_to_fasta(seq, name, filename):
