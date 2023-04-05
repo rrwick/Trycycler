@@ -44,25 +44,34 @@ def test_parse_r_version_2():
     assert trycycler.software.parse_r_version(output) == '?'
 
 
-def test_parse_ape_version_1():
+def test_parse_r_package_version_1():
     output = '> packageVersion("ape")\n' \
              '[1] ‘5.3’\n' \
              '>'
-    assert trycycler.software.parse_ape_version(output) == '5.3'
+    assert trycycler.software.parse_r_package_version(output) == '5.3'
 
 
-def test_parse_ape_version_2():
-    output = 'Not the correct output'
-    assert trycycler.software.parse_ape_version(output) == '?'
+def test_parse_r_package_version_2():
+    output = '> packageVersion("ape")\n' \
+             "[1] '5.3'\n" \
+             '>'
+    assert trycycler.software.parse_r_package_version(output) == '5.3'
 
 
-def test_parse_phangorn_version_1():
+def test_parse_r_package_version_3():
     output = '> packageVersion("phangorn")\n' \
              '[1] ‘2.5.5’\n' \
              '>'
-    assert trycycler.software.parse_ape_version(output) == '2.5.5'
+    assert trycycler.software.parse_r_package_version(output) == '2.5.5'
 
 
-def test_parse_phangorn_version_2():
+def test_parse_r_package_version_4():
+    output = '> packageVersion("phangorn")\n' \
+             "[1] '2.5.5'\n" \
+             '>'
+    assert trycycler.software.parse_r_package_version(output) == '2.5.5'
+
+
+def test_parse_r_package_version_5():
     output = 'Not the correct output'
-    assert trycycler.software.parse_ape_version(output) == '?'
+    assert trycycler.software.parse_r_package_version(output) == '?'

@@ -131,17 +131,8 @@ def check_ape():
     if 'there is no package' in output or 'not found' in output:
         sys.exit('\nError: unable to find ape - make sure that the "ape" package is installed '
                  'for your R installation, then try again.')
-    version = parse_ape_version(output)
+    version = parse_r_package_version(output)
     log(f'       ape: v{version}')
-
-
-def parse_ape_version(output):
-    if '[1] ‘' in output:
-        output = output.split('[1] ‘')[1]
-        output = output.split('’')[0]
-        return output.strip()
-    else:
-        return '?'
 
 
 def check_phangorn():
@@ -155,14 +146,18 @@ def check_phangorn():
     if 'there is no package' in output or 'not found' in output:
         sys.exit('\nError: unable to find phangorn - make sure that the "phangorn" package is '
                  'installed for your R installation, then try again.')
-    version = parse_phangorn_version(output)
+    version = parse_r_package_version(output)
     log(f'  phangorn: v{version}')
 
 
-def parse_phangorn_version(output):
+def parse_r_package_version(output):
     if '[1] ‘' in output:
         output = output.split('[1] ‘')[1]
         output = output.split('’')[0]
+        return output.strip()
+    elif "[1] '" in output:
+        output = output.split("[1] '")[1]
+        output = output.split("'")[0]
         return output.strip()
     else:
         return '?'
