@@ -25,7 +25,7 @@ INITIAL_TOP_LEFT_GAP = 0.1
 BORDER_GAP = 0.015
 BETWEEN_SEQ_GAP = 0.0125
 OUTLINE_WIDTH = 0.0015
-TEXT_GAP = 0.0025
+TEXT_GAP = 0.005
 MAX_FONT_SIZE = 0.025
 BACKGROUND_COLOUR = 'white'
 SELF_VS_SELF_COLOUR = 'lightgrey'
@@ -244,17 +244,20 @@ def get_font(draw, label, font_size, start_position, end_position):
 
     # If we had to resort to the default font, then we can't size it.
     if is_default_font:
-        text_width, text_height = draw.textsize(label, font=font)
+        left, top, right, bottom = font.getbbox(label)
+        text_width, text_height = right - left, bottom - top
         return font, text_width, text_height, font_size
 
     # If we have a size-able font, then we adjust the size down until the text fits in the
     # available space.
     available_width = end_position - start_position
-    text_width, text_height = draw.textsize(label, font=font)
+    left, top, right, bottom = font.getbbox(label)
+    text_width, text_height = right - left, bottom - top
     while text_width > available_width:
         font_size -= 1
         font, _ = load_font(font_size)
-        text_width, text_height = draw.textsize(label, font=font)
+        left, top, right, bottom = font.getbbox(label)
+        text_width, text_height = right - left, bottom - top
     return font, text_width, text_height, font_size
 
 
