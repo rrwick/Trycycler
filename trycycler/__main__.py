@@ -215,7 +215,7 @@ def reconcile_subparser(subparsers):
     final_check_args = group.add_argument_group('Final check')
     final_check_args.add_argument('--min_identity', type=float, default=98.0,
                                   help='Minimum allowed pairwise percent identity')
-    final_check_args.add_argument('--min_1kbp_identity', type=int, default=25.0,
+    final_check_args.add_argument('--min_1kbp_identity', type=float, default=25.0,
                                   help='Minimum allowed pairwise 1kbp window identity')
 
     other_args = group.add_argument_group('Other')
@@ -264,7 +264,7 @@ def partition_subparser(subparsers):
     setting_args = group.add_argument_group('Settings')
     setting_args.add_argument('--min_aligned_len', type=int, default=1000,
                               help='Do not consider reads with less than this many bases aligned')
-    setting_args.add_argument('--min_read_cov', type=int, default=90.0,
+    setting_args.add_argument('--min_read_cov', type=float, default=90.0,
                               help='Do not consider reads with less than this percentages of '
                                    'their length covered by alignments')
     setting_args.add_argument('-t', '--threads', type=int, default=get_default_thread_count(),
