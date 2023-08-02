@@ -36,7 +36,7 @@ def reconcile(args):
         seqs = circularise(seqs, args)
         seqs, starting_seq = get_starting_seq(seqs, args.threads)
         seqs = rotate_to_starting_seq(seqs, starting_seq)
-    pairwise_cigars, percent_identities, worst_1kbp_identities = get_pairwise_alignments(seqs)
+    pairwise_cigars, percent_identities, worst_1kbp_identities = get_pairwise_alignments(seqs, args.threads)
     print_identity_matrix(seqs, percent_identities, args.min_identity)
     print_worst_1kbp_matrix(seqs, worst_1kbp_identities, args.min_1kbp_identity)
     finished_message()
