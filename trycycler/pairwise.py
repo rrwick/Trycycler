@@ -11,13 +11,20 @@ details. You should have received a copy of the GNU General Public License along
 If not, see <http://www.gnu.org/licenses/>.
 """
 
+from concurrent.futures import as_completed, ProcessPoolExecutor
 import edlib
 import re
 
 from .log import log, section_header, explanation
 
 
-def get_pairwise_alignments(seqs):
+def align_sequences(seq_a, seq_b):
+    result = edlib.align(seq_a, seq_b, mode='NW', task='path')
+    cigar = result['cigar']
+    percent_identity, worst_1kbp = identity_and_worst_1kbp_from_cigar(cigar)
+    return cigar, percent_identity, worst_1kbp
+
+def get_pairwise_alignments(seqs, threads=1):
     section_header('Pairwise global alignments')
     explanation('Trycycler uses the edlib aligner to get global alignments between all pairs of '
                 'sequences. This can help you to spot any problematic sequences that should be '
@@ -28,18 +35,21 @@ def get_pairwise_alignments(seqs):
     max_seq_name_len = max(len(x) for x in seq_names)
     pairwise_cigars, percent_identities, worst_1kbp_identities = {}, {}, {}
 
-    for i, a in enumerate(seq_names):
-        seq_a = seqs[a]
-        for j in range(i+1, len(seq_names)):
-            b = seq_names[j]
-            seq_b = seqs[b]
+    with ProcessPoolExecutor(max_workers=threads) as executor:
+        futures = {}
+        for i, a in enumerate(seq_names):
+            seq_a = seqs[a]
+            for j in range(i+1, len(seq_names)):
+                b = seq_names[j]
+                seq_b = seqs[b]
+                future = executor.submit(align_sequences, seq_a, seq_b)
+                futures[future] = (a, b)
+        for future in as_completed(futures):
+            a, b = futures[future]
+            cigar, percent_identity, worst_1kbp = future.result()
             log(' ' * (max_seq_name_len - len(a)) + a, end='')
             log(' vs ', end='')
             log(b + '...' + ' ' * (max_seq_name_len - len(b)), end=' ')
-
-            result = edlib.align(seq_a, seq_b, mode='NW', task='path')
-            cigar = result['cigar']
-            percent_identity, worst_1kbp = identity_and_worst_1kbp_from_cigar(cigar)
             log(f'{percent_identity:.3f}% overall identity, '
                 f'{worst_1kbp:.1f}% worst-1kbp identity')
 
