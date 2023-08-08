@@ -18,11 +18,11 @@ import re
 from .log import log, section_header, explanation
 
 
-def align_sequences(seq_a, seq_b):
+def align_sequences(name_a, name_b, seq_a, seq_b):
     result = edlib.align(seq_a, seq_b, mode='NW', task='path')
     cigar = result['cigar']
     percent_identity, worst_1kbp = identity_and_worst_1kbp_from_cigar(cigar)
-    return cigar, percent_identity, worst_1kbp
+    return name_a, name_b, cigar, percent_identity, worst_1kbp
 
 def get_pairwise_alignments(seqs, threads=1):
     section_header('Pairwise global alignments')
@@ -36,28 +36,37 @@ def get_pairwise_alignments(seqs, threads=1):
     pairwise_cigars, percent_identities, worst_1kbp_identities = {}, {}, {}
 
     with ProcessPoolExecutor(max_workers=threads) as executor:
-        futures = {}
+        futures = []
         for i, a in enumerate(seq_names):
             seq_a = seqs[a]
             for j in range(i+1, len(seq_names)):
                 b = seq_names[j]
                 seq_b = seqs[b]
-                future = executor.submit(align_sequences, seq_a, seq_b)
-                futures[future] = (a, b)
+                futures.append(executor.submit(align_sequences, a, b, seq_a, seq_b))
+
+        print_buffer = [None] * (len(futures) + 1)
+        next_to_print = 0
+
         for future in as_completed(futures):
-            a, b = futures[future]
-            cigar, percent_identity, worst_1kbp = future.result()
-            log(' ' * (max_seq_name_len - len(a)) + a, end='')
-            log(' vs ', end='')
-            log(b + '...' + ' ' * (max_seq_name_len - len(b)), end=' ')
-            log(f'{percent_identity:.3f}% overall identity, '
-                f'{worst_1kbp:.1f}% worst-1kbp identity')
+            i = futures.index(future)
+            a, b, cigar, percent_identity, worst_1kbp = future.result()
 
             pairwise_cigars[(a, b)] = cigar
             percent_identities[(a, b)] = percent_identity
             percent_identities[(b, a)] = percent_identity
             worst_1kbp_identities[(a, b)] = worst_1kbp
             worst_1kbp_identities[(b, a)] = worst_1kbp
+
+            print_buffer[i] = (a, b, percent_identity, worst_1kbp)
+
+            while print_buffer[next_to_print] is not None:
+                a, b, percent_identity, worst_1kbp = print_buffer[next_to_print]
+                log(' ' * (max_seq_name_len - len(a)) + a, end='')
+                log(' vs ', end='')
+                log(b + '...' + ' ' * (max_seq_name_len - len(b)), end=' ')
+                log(f'{percent_identity:.3f}% overall identity, '
+                    f'{worst_1kbp:.1f}% worst-1kbp identity')
+                next_to_print += 1
     log()
 
     return pairwise_cigars, percent_identities, worst_1kbp_identities
