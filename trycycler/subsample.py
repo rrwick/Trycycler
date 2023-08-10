@@ -87,10 +87,14 @@ def determine_approx_genome_size(args):
         with open(gfa_filename, 'w') as out:
             subprocess.run(miniasm_command, stdout=out, stderr=dev_null)
         contig_count, total_size, n50 = get_gfa_stats(gfa_filename, 10000)
-        log(f'  {contig_count:,} contigs ({total_size:,} bp)')
+        plural = '' if contig_count == 1 else 's'
+        log(f'  {contig_count:,} contig{plural} ({total_size:,} bp)')
         log(f'  N50 = {n50:,} bp')
         log()
 
+    if total_size == 0:
+        sys.exit('Error: genome size estimate has failed, use --genome_size to manually set a '
+                 'genome size')
     log(f'Estimated genome size: {total_size:,} bp')
     log()
     return total_size
@@ -114,6 +118,13 @@ def get_gfa_stats(gfa_filename, min_contig_length):
 
 
 def interpret_genome_size(genome_size_str: str):
+    genome_size = interpret_genome_size_2(genome_size_str)
+    if genome_size < 1:
+        sys.exit('Error: genome size must be a positive value')
+    return genome_size
+
+
+def interpret_genome_size_2(genome_size_str: str):
     """
     Converts a genome size string (e.g. 5.5M or 3000k) to an integer.
     """

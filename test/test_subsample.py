@@ -114,6 +114,24 @@ def test_interpret_genome_size_17():
     assert 'cannot interpret genome size' in str(e.value)
 
 
+def test_interpret_genome_size_18():
+    with pytest.raises(SystemExit) as e:
+        trycycler.subsample.interpret_genome_size('0')
+    assert 'must be a positive value' in str(e.value)
+
+
+def test_interpret_genome_size_19():
+    with pytest.raises(SystemExit) as e:
+        trycycler.subsample.interpret_genome_size('-1000')
+    assert 'must be a positive value' in str(e.value)
+
+
+def test_interpret_genome_size_20():
+    with pytest.raises(SystemExit) as e:
+        trycycler.subsample.interpret_genome_size('-2M')
+    assert 'must be a positive value' in str(e.value)
+
+
 def test_calculate_subsets_01():
     assert trycycler.subsample.calculate_subsets(1000, 25000000, 1000000, 25) == 1000
 
