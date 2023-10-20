@@ -21,6 +21,12 @@ def log(message='', end='\n'):
     print(message, file=sys.stderr, flush=True, end=end)
 
 
+def log_with_wrapping(message):
+    terminal_width, _ = get_terminal_size_stderr()
+    for line in textwrap.wrap(message, width=terminal_width - 1):
+        log(line)
+
+
 def section_header(text):
     log()
     time = get_timestamp()
@@ -72,10 +78,8 @@ def explanation(text, indent_size=4):
 
 
 def quit_with_error(text):
-    terminal_width, _ = get_terminal_size_stderr()
     log()
-    for line in textwrap.wrap(text, width=terminal_width - 1):
-        log(line)
+    log_with_wrapping(text)
     log()
     sys.exit()
 

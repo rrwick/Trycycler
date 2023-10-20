@@ -14,7 +14,7 @@ If not, see <http://www.gnu.org/licenses/>.
 import collections
 
 from .alignment import align_a_to_b, align_reads_to_seq, get_best_alignment_per_read
-from .log import log, section_header, explanation, quit_with_error
+from .log import log, section_header, explanation, quit_with_error, log_with_wrapping
 from .misc import remove_duplicates
 from . import settings
 
@@ -29,9 +29,17 @@ def circularise(seqs, args):
                 'will be removed. If there are multiple possible ways to fix a contig\'s '
                 'circularisation, then Trycycler will use read alignments to choose the best one.')
     circularised_seqs = {}
+    failed_seq_names = []
     for name in seqs.keys():
-        circularised_seq = circularise_seq_with_others(name, seqs, args)
+        circularised_seq, failed = circularise_seq_with_others(name, seqs, args)
+        if failed:
+            failed_seq_names.append(name)
         circularised_seqs[name] = circularised_seq
+    if failed_seq_names:
+        failed_seq_names = ', '.join(failed_seq_names)
+        quit_with_error(f'Error: the following sequences failed to circularise: '
+                        f'{failed_seq_names}. Please repair or exclude these sequences and then '
+                        f'try running trycycler reconcile again.')
     return circularised_seqs
 
 
@@ -53,54 +61,56 @@ def circularise_seq_with_others(name_a, seqs, args):
 
     if len(candidate_seqs) == 0:
         circularised_seq = None
-        quit_with_error(get_fail_message(name_a, fail_reasons))
+        log_with_wrapping(get_fail_message(name_a, fail_reasons))
+        failed = True
 
     elif len(candidate_seqs) == 1:
         circularised_seq = candidate_seqs[0]
+        failed = False
 
     else:  # more than one:
         circularised_seq = choose_best_circularisation(candidate_seqs, candidate_seq_counts,
                                                        args.reads, args.threads)
+        failed = False
 
-    log(f'  circularisation complete ({len(circularised_seq):,} bp)')
+    if not failed:
+        log(f'  circularisation complete ({len(circularised_seq):,} bp)')
     log()
-    return circularised_seq
+    return circularised_seq, failed
 
 
 def get_fail_message(name_a, fail_reasons):
     fail_message = f'Error: failed to circularise sequence {name_a}.'
     fail_reasons = set(x for x in fail_reasons if x is not None)
     if len(fail_reasons) > 1:
-        return f'Error: failed to circularise sequence {name_a} for multiple reasons. You must ' \
-               f'either repair this sequence or exclude it and then try running trycycler ' \
-               f'reconcile again.'
+        return f'Failed to circularise sequence {name_a} for multiple reasons.'
     elif 'end not found' in fail_reasons:
-        return f'Error: failed to circularise sequence {name_a} because its end could not be ' \
-               f'found in other sequences. You can either trim some sequence off the ' \
-               f'end of {name_a} or exclude the sequence altogether and try again.'
+        return f'Failed to circularise sequence {name_a} because its end could not be found in ' \
+               f'other sequences. You can either trim some sequence off the end of {name_a} or ' \
+               f'exclude the sequence altogether.'
     elif 'start not found' in fail_reasons:
-        return f'Error: failed to circularise sequence {name_a} because its start could not be ' \
-               f'found in other sequences. You can either trim some sequence off the ' \
-               f'start of {name_a} or exclude the sequence altogether and try again.'
+        return f'Failed to circularise sequence {name_a} because its start could not be found ' \
+               f'in other sequences. You can either trim some sequence off the start of ' \
+               f'{name_a} or exclude the sequence altogether.'
     elif 'same start/end' in fail_reasons:
-        return f'Error: failed to circularise sequence {name_a} because it had the same ' \
-               f'start/end as the other sequences. I.e. the circularisations were not different ' \
-               f'and therefore could not reconcile each other.'
+        return f'Failed to circularise sequence {name_a} because it had the same start/end as ' \
+               f'the other sequences. I.e. the circularisations were not different and ' \
+               f'therefore could not reconcile each other.'
     elif 'multiple possibilities' in fail_reasons:
-        return f'Error: failed to circularise sequence {name_a} because its start/end sequences ' \
-               f'were found in multiple ambiguous places in other sequences. This is likely ' \
-               f'because {name_a} starts/ends in a repetitive region. You can either manually ' \
-               f'repair its circularisation (and ensure it does not start/end in a repetitive ' \
-               f'region) or exclude the sequence altogether and try again.'
+        return f'Failed to circularise sequence {name_a} because its start/end sequences were ' \
+               f'found in multiple ambiguous places in other sequences. This is likely because ' \
+               f'{name_a} starts/ends in a repetitive region. You can either manually repair ' \
+               f'its circularisation (and ensure it does not start/end in a repetitive region) ' \
+               f'or exclude the sequence altogether.'
     elif 'too much extra' in fail_reasons:
-        return f'Error: failed to circularise sequence {name_a} because it contained too much ' \
-               f'start-end overlap. You can either manually trim the contig sequence, ' \
-               f'increase the value of the --max_trim_seq/--max_trim_seq_percent parameters or ' \
-               f'exclude the sequence altogether and try again.'
+        return f'Failed to circularise sequence {name_a} because it contained too much ' \
+               f'start-end overlap. You can either manually trim the contig sequence, increase ' \
+               f'the value of the --max_trim_seq/--max_trim_seq_percent parameters or exclude ' \
+               f'the sequence altogether.'
     elif 'too much missing' in fail_reasons:
-        return f'Error: failed to circularise sequence {name_a} because it contained too large ' \
-               f'of a start-end gap. You can either increase the value of the --max_add_seq/' \
-               f'--max_add_seq_percent parameters or exclude the sequence altogether and try again.'
+        return f'Failed to circularise sequence {name_a} because it contained too large of a ' \
+               f'start-end gap. You can either increase the value of the --max_add_seq/' \
+               f'--max_add_seq_percent parameters or exclude the sequence altogether.'
     return fail_message
 
 
