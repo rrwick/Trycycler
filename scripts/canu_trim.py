@@ -34,9 +34,14 @@ def main():
     args = get_arguments()
     assembly = load_fasta(args.input)
     for header, seq in assembly:
-        header, seq = trim_seq(header, seq)
-        print(f'>{header}')
-        print(f'{seq}')
+        if not is_repeat_or_bubble(header):
+            header, seq = trim_seq(header, seq)
+            print(f'>{header}')
+            print(f'{seq}')
+
+
+def is_repeat_or_bubble(header):
+    return 'suggestRepeat=yes' in header or 'suggestBubble=yes' in header
 
 
 def trim_seq(header, seq):
@@ -109,6 +114,30 @@ if __name__ == '__main__':
 
 # Unit tests for Pytest
 # =====================
+
+def test_is_repeat_or_bubble_1():
+    header = '>tig00000001 len=60 reads=50 class=contig suggestRepeat=no suggestBubble=no ' \
+             'suggestCircular=no trim=0-60'
+    assert not is_repeat_or_bubble(header)
+
+
+def test_is_repeat_or_bubble_2():
+    header = '>tig00000001 len=60 reads=50 class=contig suggestRepeat=yes suggestBubble=no ' \
+             'suggestCircular=no trim=0-60'
+    assert is_repeat_or_bubble(header)
+
+
+def test_is_repeat_or_bubble_3():
+    header = '>tig00000001 len=60 reads=50 class=contig suggestRepeat=no suggestBubble=yes ' \
+             'suggestCircular=no trim=0-60'
+    assert is_repeat_or_bubble(header)
+
+
+def test_is_repeat_or_bubble_4():
+    header = '>tig00000001 len=60 reads=50 class=contig suggestRepeat=yes suggestBubble=yes ' \
+             'suggestCircular=no trim=0-60'
+    assert is_repeat_or_bubble(header)
+
 
 def test_trim_seq_1():
     header = '>tig00000001 len=60 reads=50 class=contig suggestRepeat=no suggestBubble=no ' \
