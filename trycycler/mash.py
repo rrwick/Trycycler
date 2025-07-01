@@ -15,41 +15,60 @@ import os
 import pathlib
 import subprocess
 import tempfile
+import itertools
+from concurrent.futures import ProcessPoolExecutor, as_completed
 
 from .log import log, dim, red
 from .misc import write_seq_to_fasta, reverse_complement
 from . import settings
 
+def compute_pairwise_distance(args):
+    a, b, pos_sketches, neg_sketches = args
+    if a == b:
+        return (a, b, 0.0)
+    d = min(get_mash_dist(pos_sketches[a], pos_sketches[b]),
+            get_mash_dist(pos_sketches[a], neg_sketches[b]))
+    return (a, b, d)
 
-def get_mash_dist_matrix(seq_names, seqs, distance_threshold, indent=True):
+def get_mash_dist_matrix(seq_names, seqs, distance_threshold, threads, indent=True):
     max_seq_name_len = max(len(x) for x in seq_names)
     with tempfile.TemporaryDirectory() as temp_dir:
         temp_dir = pathlib.Path(temp_dir)
         pos_sketches, neg_sketches = make_mash_sketches(seq_names, seqs, temp_dir)
         mash_matrix = {}
+        
+        # Generate (a, b) combinations
+        pairs = list(itertools.combinations_with_replacement(seq_names, 2))
+        # Prepare input tuples for multiprocessing
+        work_items = [(a, b, pos_sketches, neg_sketches) for a, b in pairs]
+
+        # Run parallel distance computation
+        with ProcessPoolExecutor(max_workers=threads) as executor:
+            futures = [executor.submit(compute_pairwise_distance, args) for args in work_items]
+            for future in as_completed(futures):
+                a, b, dist = future.result()
+                mash_matrix[(a, b)] = dist
+                mash_matrix[(b, a)] = dist
+
+        # keep output
         for a in seq_names:
             if indent:
                 log('  ', end='')
             log(a, end=':')
             log(' ' * (max_seq_name_len - len(a)), end=' ')
             for b in seq_names:
+                dist = mash_matrix[(a, b)]
                 if a == b:
-                    distance = 0.0
+                    log(dim(f'{dist:.3f}'), end='')
+                elif dist > distance_threshold:
+                    log(red(f'{dist:.3f}'), end='')
                 else:
-                    distance = min(get_mash_dist(pos_sketches[a], pos_sketches[b]),
-                                   get_mash_dist(pos_sketches[a], neg_sketches[b]))
-                    mash_matrix[(a, b)] = distance
-                if a == b:
-                    log(dim(f'{distance:.3f}'), end='')
-                elif distance > distance_threshold:
-                    log(red(f'{distance:.3f}'), end='')
-                else:
-                    log(f'{distance:.3f}', end='')
-                if b != seq_names[-1]:  # if not the last one in the row
+                    log(f'{dist:.3f}', end='')
+                if b != seq_names[-1]:
                     log('  ', end='')
-                mash_matrix[(b, a)] = distance
             log()
-    log()
+        log()
+
     return mash_matrix
 
 
