@@ -38,7 +38,7 @@ def cluster(args):
                                              args.min_contig_depth)
     seq_names = filter_contigs(args.assemblies, fasta_names, seq_names, seqs, args.min_contig_len,
                                args.min_contig_depth, depth_filter)
-    matrix = distance_matrix(seqs, seq_names, args.distance)
+    matrix = distance_matrix(seqs, seq_names, args.distance, args.threads)
     cluster_numbers = complete_linkage(seqs, seq_names, depths, matrix, args.distance, args.out_dir)
     build_tree(seq_names, seqs, depths, matrix, args.out_dir, cluster_numbers)
     finished_message()
@@ -228,10 +228,10 @@ def filter_contigs(assembly_filenames, fasta_names, seq_names, seqs, min_contig_
     return final_seq_names
 
 
-def distance_matrix(seqs, seq_names, distance):
+def distance_matrix(seqs, seq_names, distance, threads):
     section_header('Building distance matrix')
     explanation('Mash is used to build a distance matrix of all contigs in the assemblies.')
-    mash_matrix = get_mash_dist_matrix(seq_names, seqs, distance, indent=False)
+    mash_matrix = get_mash_dist_matrix(seq_names, seqs, distance, threads, indent=False)
     return mash_matrix
 
 
