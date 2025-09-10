@@ -189,8 +189,8 @@ def remove_duplicates(lst):
 
 
 def check_python_version():
-    if sys.version_info.major < 3 or sys.version_info.minor < 6:
-        sys.exit('\nError: Trycycler requires Python 3.6 or later')
+    if sys.version_info.major < 3 or sys.version_info.minor < 9:
+        sys.exit('\nError: Trycycler requires Python 3.9 or later')
 
 
 def check_output_directory(directory: pathlib.Path):

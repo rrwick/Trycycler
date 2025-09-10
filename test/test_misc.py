@@ -256,14 +256,14 @@ def test_remove_duplicates_2():
 def test_check_python_version_1():
     with unittest.mock.patch.object(sys, 'version_info') as v_info:
         v_info.major = 3
-        v_info.minor = 6
+        v_info.minor = 9
         trycycler.misc.check_python_version()
 
 
 def test_check_python_version_2():
     with unittest.mock.patch.object(sys, 'version_info') as v_info:
         v_info.major = 3
-        v_info.minor = 8
+        v_info.minor = 10
         trycycler.misc.check_python_version()
 
 
@@ -271,9 +271,9 @@ def test_check_python_version_3():
     with pytest.raises(SystemExit) as e:
         with unittest.mock.patch.object(sys, 'version_info') as v_info:
             v_info.major = 3
-            v_info.minor = 5
+            v_info.minor = 8
             trycycler.misc.check_python_version()
-    assert 'requires Python 3.6 or later' in str(e.value)
+    assert 'requires Python 3.9 or later' in str(e.value)
 
 
 def test_check_python_version_4():
@@ -282,7 +282,7 @@ def test_check_python_version_4():
             v_info.major = 2
             v_info.minor = 7
             trycycler.misc.check_python_version()
-    assert 'requires Python 3.6 or later' in str(e.value)
+    assert 'requires Python 3.9 or later' in str(e.value)
 
 
 def test_check_output_directory_1():

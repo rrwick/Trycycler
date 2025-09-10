@@ -11,12 +11,11 @@ details. You should have received a copy of the GNU General Public License along
 If not, see <http://www.gnu.org/licenses/>.
 """
 
-import pathlib
-import pkg_resources
 import random
 import sys
 import textwrap
 import zlib
+from importlib import resources
 
 from .alignment import align_a_to_b, align_reads_to_seq
 from .log import log, section_header, explanation
@@ -74,45 +73,45 @@ def get_starting_seq(seqs, threads):
 
 
 def look_for_known_starting_seq(seqs, threads):
-    data_path = pathlib.Path(pkg_resources.resource_filename(__name__, 'data'))
-    starting_genes = str(data_path / 'starting_genes.fasta')
+    with resources.as_file(resources.files(__package__) / 'data' / 'starting_genes.fasta') as p:
+        starting_genes = str(p)
 
-    log('Looking for known starting sequences in each contig...', end='')
-    per_seq_alignments = {}
-    for name, seq in seqs.items():
-        alignments = align_reads_to_seq(starting_genes, seq, threads)
-        alignments = [a for a in alignments
-                      if a.percent_identity >= settings.KNOWN_STARTING_SEQ_MIN_IDENTITY
-                      and a.query_cov >= settings.KNOWN_STARTING_SEQ_MIN_COVERAGE
-                      and a.query_start == 0]
-        per_seq_alignments[name] = alignments
-    log('\n')
+        log('Looking for known starting sequences in each contig...', end='')
+        per_seq_alignments = {}
+        for name, seq in seqs.items():
+            alignments = align_reads_to_seq(starting_genes, seq, threads)
+            alignments = [a for a in alignments
+                          if a.percent_identity >= settings.KNOWN_STARTING_SEQ_MIN_IDENTITY
+                          and a.query_cov >= settings.KNOWN_STARTING_SEQ_MIN_COVERAGE
+                          and a.query_start == 0]
+            per_seq_alignments[name] = alignments
+        log('\n')
 
-    all_found_starting_seq_names = set()
-    for alignments in per_seq_alignments.values():
-        for a in alignments:
-            all_found_starting_seq_names.add(a.query_name)
-
-    found_once_in_each = set()
-    for starting_seq_name in all_found_starting_seq_names:
-        found_count = 0
+        all_found_starting_seq_names = set()
         for alignments in per_seq_alignments.values():
-            if len([a for a in alignments if a.query_name == starting_seq_name]) == 1:
-                found_count += 1
-        if found_count == len(seqs):
-            found_once_in_each.add(starting_seq_name)
+            for a in alignments:
+                all_found_starting_seq_names.add(a.query_name)
 
-    if len(found_once_in_each) == 0:
-        log('Unable to find a suitable known starting sequence')
-        starting_seq = None
-    else:
-        # If more than one starting sequence was found, choose the one with the first name (which
-        # should correspond to the one with the most constituent sequences in its cluster).
-        starting_seq_name = sorted(found_once_in_each)[0]
-        starting_sequences, descriptions = load_starting_sequences(starting_genes)
-        starting_seq = starting_sequences[starting_seq_name]
-        log(f'Found starting sequence {starting_seq_name} ({descriptions[starting_seq_name]})')
-        log(f'  {starting_seq[:50]}...')
+        found_once_in_each = set()
+        for starting_seq_name in all_found_starting_seq_names:
+            found_count = 0
+            for alignments in per_seq_alignments.values():
+                if len([a for a in alignments if a.query_name == starting_seq_name]) == 1:
+                    found_count += 1
+            if found_count == len(seqs):
+                found_once_in_each.add(starting_seq_name)
+
+        if len(found_once_in_each) == 0:
+            log('Unable to find a suitable known starting sequence')
+            starting_seq = None
+        else:
+            # If more than one starting sequence was found, choose the one with the first name
+            # (which should correspond to the one with the most sequences in its cluster).
+            starting_seq_name = sorted(found_once_in_each)[0]
+            starting_sequences, descriptions = load_starting_sequences(starting_genes)
+            starting_seq = starting_sequences[starting_seq_name]
+            log(f'Found starting sequence {starting_seq_name} ({descriptions[starting_seq_name]})')
+            log(f'  {starting_seq[:50]}...')
 
     log()
     return starting_seq
